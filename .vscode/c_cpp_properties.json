@@ -1,0 +1,15 @@
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "Arduino Project",
+      "includePath": [
+        "${workspaceFolder}/2026/novo_projeto/arduino",
+        "/usr/share/arduino/hardware/arduino/avr/cores/arduino",
+        "/usr/share/arduino/hardware/arduino/avr/libraries/Servo/src"
+      ],
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-x64"
+    }
+  ]
+}

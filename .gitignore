@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS
+*.log
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+.#*
+
+# VSCode workspace specific (but keep project config)
+.vscode/launch.json
+.vscode/settings.json
+
+# Environment variables
+.env
+.env.local
+
+# Build artifacts
+*.o
+*.a
+*.elf
+.build/
+
+# Arduino IDE
+.arduino/

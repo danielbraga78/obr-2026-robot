@@ -1,0 +1,57 @@
+competition:
+  mission: rescue
+  simulation: false
+  max_loop_rate_hz: 20
+  safe_mode: true
+
+camera:
+  backend: auto
+  width: 640
+  height: 480
+  fps: 30
+  backends:
+    - picamera2
+    - libcamera
+    - rpicam
+    - opencv
+
+vision:
+  line:
+    min: [0, 0, 0]
+    max: [180, 150, 80]
+  ball:
+    min: [20, 80, 80]
+    max: [40, 255, 255]
+  silver:
+    min: [0, 0, 180]
+    max: [180, 80, 255]
+  black:
+    min: [0, 0, 0]
+    max: [180, 255, 80]
+  safe_zone:
+    min: [30, 80, 80]
+    max: [70, 255, 255]
+
+pid:
+  kp: 0.35
+  ki: 0.01
+  kd: 0.05
+  max_steer: 80
+
+serial:
+  port: /dev/serial0
+  baudrate: 115200
+  timeout: 0.1
+  heartbeat_interval: 1.0
+  heartbeat_timeout: 2.5
+  reconnect_delay: 1.0
+
+motors:
+  linear_speed: 20
+  angular_speed: 20
+  lateral_speed: 0
+
+strategy:
+  obstacle_distance_cm: 20
+  rescue_distance_cm: 30
+  ball_capture_distance_cm: 15
