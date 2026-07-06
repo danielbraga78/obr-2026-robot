@@ -1,4 +1,32 @@
 {
+  "configurations": [
+    {
+      "name": "Linux",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${userHome}/.arduino15/packages/**/cores/arduino",
+        "${userHome}/.arduino15/packages/**/hardware/**/cores/arduino",
+        "${userHome}/.arduino15/packages/**/hardware/**/variants",
+        "/usr/include",
+        "/usr/local/include"
+      ],
+      "defines": [],
+      "compilerPath": "/usr/bin/avr-gcc",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-x64",
+      "browse": {
+        "path": [
+          "${workspaceFolder}/**",
+          "${userHome}/.arduino15/packages"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
+    }
+  ],
+  "version": 4
+}
+{
   "version": 4,
   "configurations": [
     {
