@@ -1,303 +1,433 @@
-# Documentação de Montagem Física - Robô OBR 2026
+# Guia de Montagem Física - Robô OBR 2026
 
-## Índice
+Este documento descreve, de forma passo a passo e com alto nível de detalhe, como montar fisicamente o robô usando:
 
-1. [Componentes Utilizados](#componentes-utilizados)
-2. [Componentes Compatíveis](#componentes-compatíveis)
-3. [Ligações Elétricas](#ligações-elétricas)
-4. [Alimentação](#alimentação)
-5. [Driver de Motores](#driver-de-motores)
-6. [Servo da Garra](#servo-da-garra)
-7. [Câmera](#câmera)
-8. [Comunicação Serial](#comunicação-serial)
-9. [Sensores Futuros](#sensores-futuros)
-10. [Diagramas](#diagramas)
-11. [Checklist de Montagem](#checklist-de-montagem)
+- 2 pontes H TB6612FNG;
+- 4 motores omnidirecionais;
+- 1 servo motor para a garra;
+- 1 sensor ultrassônico HC-SR04 (opcional, mas integrado no firmware);
+- 1 Arduino Uno/Nano;
+- 1 Raspberry Pi.
+
+O objetivo é que qualquer pessoa da equipe consiga montar, conectar, testar e diagnosticar o sistema sem depender de conhecimento tácito.
 
 ---
 
-## Componentes Utilizados
+## 1. Lista de componentes
 
-Este é o hardware **atualmente montado e funcionando** no robô.
+### Controle e processamento
 
-### Processamento
+- 1 Raspberry Pi 5 (ou 4)
+- 1 Arduino Uno ou Nano
+- 2 módulos TB6612FNG
+- 1 servo motor da garra
+- 1 sensor ultrassônico HC-SR04
+- 4 motores DC com redução
+- 4 rodas omnidirecionais
+- 1 bateria ou fonte para motores
+- 1 fonte/USB para o Raspberry Pi e Arduino
+- fios jumper macho-macho e macho-fêmea
+- conectores ou terminal blocks
+- capacitores de desacoplamento (100 nF + 100 µF recomendados)
 
-| Componente | Especificação | Função |
-|-----------|--------------|--------|
-| **Raspberry Pi 5** | 4 GB RAM | Computador central - processamento de visão, estratégia e controle |
-| **Arduino** | Uno ou Nano (recomendado Uno) | Microcontrolador - controle de motores, servo e comunicação serial |
+### Ferramentas recomendadas
 
-### Movimento
-
-| Componente | Especificação | Quantidade | Função |
-|-----------|--------------|-----------|--------|
-| **Motor DC com Redução** | ~3V-6V, 300-500 RPM | 4 | Propulsão omnidirecional (rodas) |
-| **Roda Omnidirecional** | ~60-80mm diâmetro | 4 | Roda com rodilhos (mecanum wheels ou similar) |
-| **Driver de Motor** | L298N, DRV8835 ou similar | 1 | Controle PWM e direção dos motores |
-
-### Atuadores
-
-| Componente | Especificação | Função |
-|-----------|--------------|--------|
-| **Servo Motor** | SG90, MG90S ou similar | Controle da garra de captura |
-
-### Sensores
-
-| Componente | Especificação | Função |
-|-----------|--------------|--------|
-| **Câmera** | USB ou CSI (Raspberry Pi Camera) | Percepção do ambiente e detecção de objetos |
-
-### Energia
-
-| Componente | Especificação | Função |
-|-----------|--------------|--------|
-| **Bateria/Fonte** | ~5V/2A (Raspberry) + 5-6V/2A (Arduino + motores) | Alimentação do sistema |
-| **Cabo USB** | Type-C (Raspberry Pi 5) | Conexão com Raspberry Pi |
-| **Cabo Micro-USB ou Serial** | Para Arduino | Comunicação e programação |
+- chave de fenda pequena
+- alicate de corte
+- multímetro
+- fita isolante ou tubo termorretrátil
+- etiqueta ou marcador para identificar fios
 
 ---
 
-## Componentes Compatíveis
+## 2. Estrutura física recomendada
 
-### Placas de Processamento
+Monte o robô na seguinte ordem:
 
-| Componente | Compatibilidade | Observações |
-|-----------|----------------|-------------|
-| **Raspberry Pi 5** | ✅ Totalmente Compatível | Hardware principal - recomendado |
-| **Raspberry Pi 4 (2GB+)** | ✅ Totalmente Compatível | Alternativa se Pi 5 não estiver disponível |
-| **Raspberry Pi 3B+** | ⚠️ Parcialmente Compatível | Mais lento, pode ter problemas com processamento de visão |
-| **Raspberry Pi Zero 2W** | ❌ Não Recomendado | Muito lento para visão em tempo real |
-| **Arduino Uno** | ✅ Totalmente Compatível | Padrão, recomendado |
-| **Arduino Nano** | ✅ Totalmente Compatível | Compacto, mesma funcionalidade |
-| **Arduino Mega** | ✅ Totalmente Compatível | Mais pinos disponíveis (útil para sensores futuros) |
-| **Arduino Leonardo** | ⚠️ Parcialmente Compatível | Requer ajustes no código serial |
-| **ESP32** | 🔄 Futura Compatibilidade | Requer adaptações (WiFi/Bluetooth) |
+1. Fixar a estrutura base e as rodas omnidirecionais.
+2. Fixar os quatro motores nas posições corretas.
+3. Posicionar o Arduino em uma região acessível, longe de vibração excessiva.
+4. Posicionar as duas pontes H em uma área seca e próxima aos motores.
+5. Montar o servo da garra na frente da base.
+6. Posicionar o sensor ultrassônico na frente do robô, com boa visibilidade.
+7. Organizar os cabos por caminho claro e seguro.
 
-### Câmeras
-
-| Componente | Compatibilidade | Observações |
-|-----------|----------------|-------------|
-| **Raspberry Pi Camera v2** | ✅ Totalmente Compatível | CSI/Flat ribbon - recomendada |
-| **Raspberry Pi Camera v3** | ✅ Totalmente Compatível | CSI - melhor qualidade |
-| **Câmera USB Genérica** | ✅ Totalmente Compatível | Qualquer câmera USB funciona |
-| **OmniVision OV5647** | ✅ Totalmente Compatível | Sensor da câmera v2 |
-| **Sony IMX708** | ✅ Totalmente Compatível | Sensor da câmera v3 |
-
-### Motores e Rodas
-
-| Componente | Compatibilidade | Observações |
-|-----------|----------------|-------------|
-| **Motor DC 3V-6V 300-500RPM** | ✅ Totalmente Compatível | Padrão recomendado |
-| **Motor Stepper** | ⚠️ Parcialmente Compatível | Requer driver diferente |
-| **Roda Omnidirecional (Mecanum)** | ✅ Totalmente Compatível | Padrão recomendado |
-| **Roda Omnidirecional (Sueca)** | ✅ Totalmente Compatível | Alternativa |
-| **Roda Normal** | ⚠️ Parcialmente Compatível | Apenas 2 rodas - requer adaptação física |
-
-### Drivers de Motor
-
-| Componente | Compatibilidade | Observações |
-|-----------|----------------|-------------|
-| **L298N Dual Motor Driver** | ✅ Totalmente Compatível | Padrão recomendado, 2A por canal |
-| **DRV8835 Dual Motor Driver** | ✅ Totalmente Compatível | Mais compacto, 1.5A por canal |
-| **TB6612FNG Dual Motor Driver** | ✅ Totalmente Compatível | Bom custo-benefício |
-| **L298P** | ✅ Totalmente Compatível | Variante do L298N |
-
-### Servos
-
-| Componente | Compatibilidade | Observações |
-|-----------|----------------|-------------|
-| **SG90 Servo** | ✅ Totalmente Compatível | Padrão, baixa corrente |
-| **MG90S Servo Metal** | ✅ Totalmente Compatível | Mais robusto |
-| **MG995 High Torque** | ✅ Totalmente Compatível | Maior força de torque |
-| **Qualquer servo 5V** | ✅ Totalmente Compatível | Desde que 5V e PWM padrão |
+> A organização do cabeamento é essencial para evitar curto, ruído e falhas de comunicação.
 
 ---
 
-## Ligações Elétricas
+## 3. Posicionamento dos motores
 
-### Pinagem do Arduino Uno/Nano
+Identifique os quatro motores como:
 
-```
-Arduino Uno
-     GND +---+ RST
-     5V  |   |  A5 (SCL)
-     3V3 |   |  A4 (SDA)
-     5V  |   |  A3 *
-    GND  |   |  A2 *
-     D2  |   |  A1
-     D3  |   |  A0
-     D4  |   |  GND
-     D5  |   |  AREF
-     D6  |   |  3V3
-     D7  |   |  D13
-     D8  |   |  D12
-     D9  |   |  D11
-    D10  |   |  D0 (RX)
-    GND  +---+  D1 (TX)
-    
-* Pinos disponíveis para sensores futuros
-```
+- FL: frente esquerda
+- FR: frente direita
+- RL: trás esquerda
+- RR: trás direita
 
-### Tabela de Conexões de Motores
+Cada motor deve ficar fixo na estrutura e conectado a uma roda omnidirecional.
 
-Assumindo 4 motores em configuração omnidirecional X-drive.
+### Convenção recomendada de montagem
 
-| Descrição | Pino Arduino | Tipo | Componente | Observações |
-|-----------|-------------|------|-----------|-------------|
-| **Motor 1 (FL)** |  | | | Front-Left |
-| Controle Velocidade | D3 | PWM | Driver IN1 | Enable/Speed |
-| Direção 1 | D4 | Digital | Driver IN2 | Sentido de rotação |
-| Direção 2 | D5 | Digital | Driver IN3 | Sentido de rotação |
-| **Motor 2 (FR)** |  | | | Front-Right |
-| Controle Velocidade | D6 | PWM | Driver IN1 | Enable/Speed |
-| Direção 1 | D7 | Digital | Driver IN2 | Sentido de rotação |
-| Direção 2 | D8 | Digital | Driver IN3 | Sentido de rotação |
-| **Motor 3 (RL)** |  | | | Rear-Left |
-| Controle Velocidade | D9 | PWM | Driver IN1 | Enable/Speed |
-| Direção 1 | D10 | Digital | Driver IN2 | Sentido de rotação |
-| Direção 2 | D11 | Digital | Driver IN3 | Sentido de rotação |
-| **Motor 4 (RR)** |  | | | Rear-Right |
-| Controle Velocidade | D13 | Digital | Driver Enable | Pode ser PWM com modificações |
-| Direção 1 | A0 | Analog | Driver IN2 | Sentido de rotação |
-| Direção 2 | A1 | Analog | Driver IN3 | Sentido de rotação |
+| Identificação | Posição física |
+|---|---|
+| FL | Canto dianteiro esquerdo |
+| FR | Canto dianteiro direito |
+| RL | Canto traseiro esquerdo |
+| RR | Canto traseiro direito |
 
-### Tabela de Conexões do Servo
-
-| Descrição | Pino Arduino | Tipo | Componente | Observações |
-|-----------|-------------|------|-----------|-------------|
-| **Servo da Garra** |  | | | |
-| Sinal PWM | D2 | PWM | Servo Signal | Controle de abertura/fechamento |
-| 5V | 5V | Power | Servo Power | Alimentação |
-| GND | GND | Ground | Servo Ground | Terra comum |
-
-### Tabela de Conexões Serial (Arduino ↔ Raspberry)
-
-#### Modo USB (Recomendado)
-
-| Componente | Conexão | Observações |
-|-----------|---------|-------------|
-| **Arduino** | USB Type-B | Programação e comunicação |
-| **Raspberry Pi 5** | USB-A (host) | Conexão com Arduino |
-| **Drivers** | libftdi (automático) | Drivers CH340 ou FTDI |
-
-#### Modo UART (GPIO do Raspberry)
-
-**⚠️ ATENÇÃO: Nível de Tensão!**
-- Raspberry Pi: 3.3V lógico
-- Arduino: 5V lógico
-- Requer divisor de tensão no sinal RX do Arduino
-
-| Componente | Pino Arduino | Pino Raspberry | Tipo | Observações |
-|-----------|------------|----------------|------|-------------|
-| **TX (saída)** | D1 (TX) | GPIO 15 (RX) | Serial | Sinal direto (Arduino → Raspberry) |
-| **RX (entrada)** | D0 (RX) | GPIO 14 (TX) | Serial | Requer divisor de tensão (3.3V) |
-| **GND** | GND | GND | Power | Terra comum (essencial) |
-
-**Divisor de Tensão para RX do Arduino:**
-```
-Raspberry Pi GPIO 14 (3.3V saída)
-              ↓
-         [Resistor 1k]
-              ↓
-    ┌─────────●─────────┐
-    │                   │
-    ↓                   ↓
-Arduino D0 (RX)   [Resistor 2k2]
-                        ↓
-                       GND
-```
-
-### Tabela de Conexões da Câmera
-
-#### Câmera CSI (Ribbon Cable)
-
-| Tipo | Conexão | Observações |
-|------|---------|-------------|
-| **Flat Ribbon** | Camera Port no Raspberry | CSI/DSI 22-pin ou 15-pin |
-| **Comprimento recomendado** | 15-30cm | Evita interferência eletromagnética |
-
-#### Câmera USB
-
-| Tipo | Conexão | Observações |
-|------|---------|-------------|
-| **USB Type-A** | Porta USB do Raspberry | Plug-and-play |
-| **Alimentação** | Pode ser fornecida pelo Raspberry | Verificar consumo de corrente |
+A ordem de conexão elétrica não precisa seguir a ordem física do chassi, mas é importante manter a mesma convenção no firmware.
 
 ---
 
-## Alimentação
+## 4. Montagem da primeira ponte H (TB6612FNG A)
 
-### Requisitos de Tensão e Corrente
+A primeira ponte H controlará dois motores: FL e FR.
 
-| Componente | Tensão Nominal | Corrente Máxima | Observações |
-|-----------|--|--|--|
-| **Raspberry Pi 5** | 5V | 2A | ~5W em repouso, ~10W sob carga |
-| **Arduino Uno** | 5V | 500mA | ~1W em repouso |
-| **Motor DC (1 unidade)** | 3-6V | 0.5-1A | Depende da carga |
-| **4 Motores DC** | 5-6V | 2-4A | Sob carga máxima |
-| **Servo SG90** | 5V | 0.5-1A | Máximo durante movimento |
-| **Câmera USB** | 5V | 0.5A | Poder consumido por lente e sensor |
-| **Câmera CSI** | 3.3V | 0.2-0.5A | Menor consumo que USB |
+### Pinos da ponte A
 
-### Configuração de Alimentação Recomendada
+| Pino | Função | Conexão no robô |
+|---|---|---|
+| VM | alimentação dos motores | bateria / fonte de motores |
+| VCC | alimentação da lógica | 5 V do Arduino ou regulador estável |
+| GND | terra comum | GND da bateria + GND do Arduino |
+| STBY | habilita/desabilita o driver | pino digital do Arduino |
+| PWMA | PWM motor A | pino PWM do Arduino |
+| AIN1 | direção motor A | pino digital do Arduino |
+| AIN2 | direção motor A | pino digital do Arduino |
+| AO1 | saída motor A | terminal do motor FL |
+| AO2 | saída motor A | terminal do motor FL |
+| PWMB | PWM motor B | pino PWM do Arduino |
+| BIN1 | direção motor B | pino digital do Arduino |
+| BIN2 | direção motor B | pino digital do Arduino |
+| BO1 | saída motor B | terminal do motor FR |
+| BO2 | saída motor B | terminal do motor FR |
 
-```
-Fonte 5V/3A (para Raspberry Pi)
-    ↓
-[Filtro/Capacitor]
-    ↓
-    ├─→ Raspberry Pi 5
-    │
-    └─→ [Divisor ou Fonte Separada]
-            ↓
-            ├─→ Arduino Uno (via USB)
-            ├─→ Servo (5V)
-            └─→ Driver de Motores
+### Conexão física sugerida para a Ponte A
 
-Fonte 6V/3A ou 5V/3A (para Motores)
-    ↓
-[Filtro/Capacitor]
-    ↓
-    └─→ Driver de Motores (IN: 6-35V, Motor: 3-6V)
-```
+| Componente | Conexão |
+|---|---|
+| VM da Ponte A | positivo da alimentação dos motores |
+| VCC da Ponte A | 5 V do Arduino |
+| GND da Ponte A | GND do Arduino e GND da bateria |
+| STBY da Ponte A | pino D12 do Arduino |
+| PWMA da Ponte A | pino D3 do Arduino |
+| AIN1 da Ponte A | pino D4 do Arduino |
+| AIN2 da Ponte A | pino D5 do Arduino |
+| PWMB da Ponte A | pino D6 do Arduino |
+| BIN1 da Ponte A | pino D7 do Arduino |
+| BIN2 da Ponte A | pino D8 do Arduino |
+| AO1/AO2 | motor FL |
+| BO1/BO2 | motor FR |
 
-### Recomendações
+### Observação importante
 
-1. **Terra Comum (GND)**
-   - Todos os componentes devem compartilhar a mesma referência de terra
-   - Use cabos de cobre com seção adequada (mínimo 0.5mm²)
-
-2. **Capacitores de Desacoplamento**
-   - 100µF próximo ao Raspberry Pi
-   - 10µF próximo ao Arduino
-   - 100µF próximo ao Driver de Motores
-
-3. **Isolamento de Ruído**
-   - Mantenha cabos de motor longe de cabos de sinal
-   - Use ferrite cores para reduzir interferência eletromagnética
-
-4. **Proteção**
-   - Fusível de 2-3A na linha de motores
-   - Diodo de proteção (1N4007) no pino EN do driver
-
-5. **Verificação**
-   - Medir voltagem com multímetro antes de energizar
-   - Começar com carga zero antes de adicionar motores
-   - Monitorar temperatura dos componentes
+Os pinos exatos podem ser alterados no firmware. O importante é manter a convenção no código.
 
 ---
 
-## Driver de Motores
+## 5. Montagem da segunda ponte H (TB6612FNG B)
 
-### L298N (Recomendado)
+A segunda ponte H controlará os motores RL e RR.
 
-**Especificações:**
-- Tensão de entrada: 5V a 35V
-- Corrente máxima: 2A por canal
-- 2 canais independentes
-- Saída PWM para controle de velocidade
+### Pinos da ponte B
 
-**Pinagem L298N:**
+| Pino | Função | Conexão no robô |
+|---|---|---|
+| VM | alimentação dos motores | mesma bateria / fonte de motores |
+| VCC | alimentação da lógica | 5 V do Arduino ou regulador estável |
+| GND | terra comum | GND da bateria + GND do Arduino |
+| STBY | habilita/desabilita o driver | pino digital do Arduino |
+| PWMA | PWM motor A | pino PWM do Arduino |
+| AIN1 | direção motor A | pino digital do Arduino |
+| AIN2 | direção motor A | pino digital do Arduino |
+| AO1 | saída motor A | terminal do motor RL |
+| AO2 | saída motor A | terminal do motor RL |
+| PWMB | PWM motor B | pino PWM do Arduino |
+| BIN1 | direção motor B | pino digital do Arduino |
+| BIN2 | direção motor B | pino digital do Arduino |
+| BO1 | saída motor B | terminal do motor RR |
+| BO2 | saída motor B | terminal do motor RR |
+
+### Conexão física sugerida para a Ponte B
+
+| Componente | Conexão |
+|---|---|
+| VM da Ponte B | mesmo positivo da alimentação dos motores |
+| VCC da Ponte B | 5 V do Arduino |
+| GND da Ponte B | GND do Arduino e GND da bateria |
+| STBY da Ponte B | pino D12 do Arduino ou outro pino livre |
+| PWMA da Ponte B | pino D9 do Arduino |
+| AIN1 da Ponte B | pino D10 do Arduino |
+| AIN2 da Ponte B | pino D11 do Arduino |
+| PWMB da Ponte B | pino D13 do Arduino |
+| BIN1 da Ponte B | pino A0 do Arduino |
+| BIN2 da Ponte B | pino A1 do Arduino |
+| AO1/AO2 | motor RL |
+| BO1/BO2 | motor RR |
+
+### Atenção
+
+Se quiser simplificar a montagem, pode-se usar o mesmo pino STBY para ambas as pontes, desde que a lógica do firmware fique consistente. O firmware atual usa um único conjunto de pinos para 4 motores em um único controlador abstraído, então a adaptação pode ser feita conforme o hardware real.
+
+---
+
+## 6. Ligação dos motores às ponte H
+
+Cada motor deve ser ligado aos dois pinos de saída de um canal.
+
+### Exemplo prático
+
+| Motor | Ponte H | Pinos de saída |
+|---|---|---|
+| FL | Ponte A | AO1 e AO2 |
+| FR | Ponte A | BO1 e BO2 |
+| RL | Ponte B | AO1 e AO2 |
+| RR | Ponte B | BO1 e BO2 |
+
+### Passo a passo
+
+1. Identifique os dois fios do motor.
+2. Conecte um fio ao pino AO1 ou BO1.
+3. Conecte o outro fio ao pino AO2 ou BO2.
+4. Não importa qual fio vai em qual saída no início; se o motor girar invertido, isso será corrigido no firmware.
+
+> Não é necessário inverter a fiação do motor no chassi. O sentido pode ser ajustado no firmware com um fator de sinal.
+
+---
+
+## 7. Ligação do sensor ultrassônico HC-SR04
+
+O firmware do Arduino usa os pinos A2 e A3 para o sensor ultrassônico.
+
+### Pinagem do HC-SR04
+
+| Pino | Função | Conexão |
+|---|---|---|
+| VCC | 5 V | 5 V do Arduino |
+| TRIG | disparo | pino A2 do Arduino |
+| ECHO | eco | pino A3 do Arduino |
+| GND | terra | GND do Arduino |
+
+### Posicionamento físico
+
+- Fixar na parte frontal do robô.
+- Direcionar para a frente.
+- Manter afastado de motores e cabos de potência para reduzir ruído.
+- Evitar que a estrutura metálica ou a bateria interfira na leitura.
+
+### Passo a passo
+
+1. Conectar VCC do sensor ao 5 V do Arduino.
+2. Conectar GND ao GND do Arduino.
+3. Conectar TRIG ao pino A2.
+4. Conectar ECHO ao pino A3.
+
+---
+
+## 8. Ligação do servo da garra
+
+O firmware usa o pino D2 para o servo da garra.
+
+### Pinagem típica do servo
+
+| Pino | Função | Conexão |
+|---|---|---|
+| VCC | alimentação | 5 V do Arduino |
+| GND | terra | GND do Arduino |
+| Sinal | controle PWM | pino D2 do Arduino |
+
+### Posicionamento físico
+
+- Fixar o servo na estrutura da garra.
+- Se possível, deixar o eixo do servo alinhado com a articulação da garra.
+- Evitar sobrecarga mecânica no servo.
+
+### Passo a passo
+
+1. Conectar VCC ao 5 V do Arduino.
+2. Conectar GND ao GND do Arduino.
+3. Conectar o fio de sinal ao pino D2.
+
+---
+
+## 9. Ligação do Arduino com o Raspberry Pi
+
+### Opção recomendada: USB
+
+- conectar o Arduino ao Raspberry Pi por cabo USB.
+- esta é a forma mais simples e robusta.
+
+### Opção alternativa: UART
+
+- usar TX/RX entre Arduino e Raspberry Pi.
+- se usar UART, o Raspberry Pi deve trabalhar com 3.3 V e o Arduino com 5 V.
+- em geral, a comunicação por USB é preferida para inicial teste.
+
+### Conexão serial básica
+
+| Componente | Conexão |
+|---|---|
+| Arduino TX | Raspberry RX |
+| Arduino RX | Raspberry TX |
+| GND comum | GND comum |
+
+> Se usar UART, recomenda-se um divisor de tensão para o pino RX do Arduino.
+
+---
+
+## 10. Alimentação elétrica
+
+### Alimentação dos motores
+
+- A alimentação dos motores deve vir da bateria ou fonte de potência dedicada.
+- Não alimentar os motores pelo pino 5 V do Arduino.
+- O positivo da bateria deve ir para VM das pontes H.
+
+### Alimentação da lógica
+
+- O VCC de cada ponte H pode receber 5 V do Arduino.
+- O Arduino pode ser alimentado por USB ou por fonte regulada.
+
+### GND comum
+
+- O GND da bateria, do Arduino, das pontes H, do servo e do sensor ultrassônico devem ser unidos.
+- Sem GND comum, o sistema pode não responder corretamente.
+
+### Capacidade recomendada da bateria
+
+- Uma bateria com margem de corrente é recomendada.
+- Para 4 motores pequenos/médios, prefira uma fonte estável que consiga entregar pico sem queda acentuada.
+
+### Cuidados de alimentação
+
+- use fios curtos e grossos para os motores;
+- mantenha os cabos de potência longe dos cabos de sinal;
+- coloque capacitores próximos às pontes H;
+- monitore aquecimento.
+
+---
+
+## 11. Passo a passo de montagem
+
+### Passo 1 — Preparar a base
+
+- definir posições dos motores;
+- fixar as rodas e a estrutura;
+- deixar espaço para Arduino, pontes H e bateria.
+
+### Passo 2 — Instalar os motores
+
+- prender cada motor na base;
+- acoplar a roda omnidirecional;
+- verificar se há folga e se não há atrito excessivo.
+
+### Passo 3 — Posicionar as pontes H
+
+- montar a Ponte A perto dos motores FL/FR;
+- montar a Ponte B perto dos motores RL/RR;
+- fixar firmemente sem risco de curto.
+
+### Passo 4 — Conectar os motores às pontes H
+
+- conectar FL à Ponte A (AO1/AO2);
+- conectar FR à Ponte A (BO1/BO2);
+- conectar RL à Ponte B (AO1/AO2);
+- conectar RR à Ponte B (BO1/BO2).
+
+### Passo 5 — Conectar alimentação
+
+- ligar o positivo da bateria em VM das duas pontes H;
+- ligar o GND da bateria no GND das duas pontes H;
+- ligar o GND da bateria no GND do Arduino;
+- ligar 5 V do Arduino no VCC das duas pontes H.
+
+### Passo 6 — Conectar sinais do Arduino
+
+- ligar os sinais de direção e PWM da Ponte A aos pinos definidos no firmware;
+- ligar os sinais de direção e PWM da Ponte B aos pinos definidos no firmware;
+- ligar o STBY conforme a configuração escolhida.
+
+### Passo 7 — Conectar servo da garra
+
+- VCC no 5V;
+- GND no GND;
+- sinal no D2.
+
+### Passo 8 — Conectar sensor ultrassônico
+
+- VCC no 5V;
+- GND no GND;
+- TRIG em A2;
+- ECHO em A3.
+
+### Passo 9 — Conectar Raspberry Pi
+
+- via USB para simplificar e evitar problemas de tensão.
+
+### Passo 10 — Teste inicial sem carga
+
+- energizar o sistema;
+- verificar se o Arduino inicializa;
+- verificar se a comunicação serial funciona;
+- testar cada motor individualmente com PWM baixo.
+
+---
+
+## 12. Testes de bancada
+
+### Teste 1 — alimentação
+
+- medir tensão em VM e VCC;
+- confirmar se a bateria entrega tensão estável.
+
+### Teste 2 — ponte H isolada
+
+- testar um motor por vez;
+- confirmar se a rotação sobe e desce com PWM.
+
+### Teste 3 — sentido
+
+- verificar se o sentido corresponde ao esperado;
+- corrigir via firmware se necessário.
+
+### Teste 4 — servo
+
+- mandar abertura e fechamento simples;
+- verificar se o movimento é suave.
+
+### Teste 5 — sensor ultrassônico
+
+- verificar se o sensor responde e a leitura aparece no serial.
+
+---
+
+## 13. Checklist final
+
+- [ ] motores presos e alinhados
+- [ ] rodas omnidirecionais fixadas
+- [ ] pontes H montadas e fixadas
+- [ ] motor FL conectado à Ponte A
+- [ ] motor FR conectado à Ponte A
+- [ ] motor RL conectado à Ponte B
+- [ ] motor RR conectado à Ponte B
+- [ ] alimentação de motores conectada corretamente
+- [ ] alimentação da lógica conectada corretamente
+- [ ] GND comum garantido
+- [ ] servo da garra conectado
+- [ ] sensor ultrassônico conectado
+- [ ] Arduino ligado ao Raspberry Pi
+- [ ] firmware compilado e testado
+
+---
+
+## 14. Observações importantes
+
+- O sentido de cada motor pode ser ajustado no firmware, sem necessidade de rewire.
+- Nunca alimentar motores diretamente pelo pino 5 V do Arduino.
+- Se houver reinicialização do Arduino, conferir alimentação, GND e ruído.
+- Se um motor não girar, verificar STBY, PWM, conexão do fio e tensão da bateria.
+
 
 ```
     ┌─────────────┐
