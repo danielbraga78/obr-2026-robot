@@ -139,6 +139,8 @@ O firmware está concentrado em um único arquivo otimizado:
 
 - [arduino/robot.ino](arduino/robot.ino) (~250 linhas)
 
+- Versão para Mega: [arduino/robot_mega.ino](arduino/robot_mega.ino) e guia em [arduino/MEGA.md](arduino/MEGA.md).
+
 Ele mantém a lógica bem estruturada:
 
 - **setup()**: inicialização de motores, servo e serial

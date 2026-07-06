@@ -111,9 +111,9 @@ A primeira ponte H controlará dois motores: FL e FR.
 | VCC da Ponte A | 5 V do Arduino |
 | GND da Ponte A | GND do Arduino e GND da bateria |
 | STBY da Ponte A | pino D12 do Arduino |
-| PWMA da Ponte A | pino D3 do Arduino |
-| AIN1 da Ponte A | pino D4 do Arduino |
-| AIN2 da Ponte A | pino D5 do Arduino |
+| PWMA da Ponte A | pino D3 do Arduino (Mega: pino 2 recomendado) |
+| AIN1 da Ponte A | pino D4 do Arduino (Mega: pino 22 recomendado) |
+| AIN2 da Ponte A | pino D5 do Arduino (Mega: pino 23 recomendado) |
 | PWMB da Ponte A | pino D6 do Arduino |
 | BIN1 da Ponte A | pino D7 do Arduino |
 | BIN2 da Ponte A | pino D8 do Arduino |
@@ -157,12 +157,12 @@ A segunda ponte H controlará os motores RL e RR.
 | VCC da Ponte B | 5 V do Arduino |
 | GND da Ponte B | GND do Arduino e GND da bateria |
 | STBY da Ponte B | pino D12 do Arduino ou outro pino livre |
-| PWMA da Ponte B | pino D9 do Arduino |
-| AIN1 da Ponte B | pino D10 do Arduino |
-| AIN2 da Ponte B | pino D11 do Arduino |
-| PWMB da Ponte B | pino D13 do Arduino |
-| BIN1 da Ponte B | pino A0 do Arduino |
-| BIN2 da Ponte B | pino A1 do Arduino |
+| PWMA da Ponte B | pino D9 do Arduino (Mega: pino 4 recomendado) |
+| AIN1 da Ponte B | pino D10 do Arduino (Mega: pino 26 recomendado) |
+| AIN2 da Ponte B | pino D11 do Arduino (Mega: pino 27 recomendado) |
+| PWMB da Ponte B | pino D13 do Arduino (Mega: pino 5 recomendado) |
+| BIN1 da Ponte B | pino A0 do Arduino (Mega: pino 28 recomendado) |
+| BIN2 da Ponte B | pino A1 do Arduino (Mega: pino 29 recomendado) |
 | AO1/AO2 | motor RL |
 | BO1/BO2 | motor RR |
 
@@ -341,6 +341,14 @@ O firmware usa o pino D2 para o servo da garra.
 - ligar o GND da bateria no GND das duas pontes H;
 - ligar o GND da bateria no GND do Arduino;
 - ligar 5 V do Arduino no VCC das duas pontes H.
+
+**Se estiver usando Arduino Mega:**
+
+- mantenha exatamente a mesma regra de GND comum entre Mega, Raspberry e
+    pontes H;
+- conecte `VCC` das pontes H ao `5V` do Mega (ou a um regulador 5V estável);
+- para comunicação TTL dedicada, considere usar `Serial1` (pinos 18/19) e
+    lembre-se do conversor de nível entre 5V e 3.3V.
 
 ### Passo 6 — Conectar sinais do Arduino
 
