@@ -1,4 +1,5 @@
 import logging
+import os
 import queue
 import sys
 import threading
@@ -33,7 +34,8 @@ from raspberry.vision.pipeline import VisionPipeline
 from raspberry.vision.rescue_detector import RescueDetector
 from raspberry.vision.safe_zone_detector import SafeZoneDetector
 
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+# ROBOT_LOG_LEVEL=DEBUG mostra, entre outras coisas, cada linha vinda do Arduino.
+logging.basicConfig(level=os.environ.get("ROBOT_LOG_LEVEL", "INFO").upper(), format="[%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -100,10 +102,13 @@ class RobotApp:
                     result = None
                 if result is not None:
                     self._update_context_from_result(result)
+                    # A máquina é a fonte única de verdade; o contexto a espelha.
+                    self.context.current_state = self.machine.current_state
                     decision = self.strategy.evaluate(self.context)
                     if decision.next_state:
-                        self.context.current_state = decision.next_state
+                        # Transição reativa: obstáculo, resgate, bola.
                         self.machine.transition_to(decision.next_state)
+                        self.context.current_state = self.machine.current_state
                     state_result = self.machine.run_once(self.context, current_frame, self.detectors)
                     if state_result.command:
                         self._log_telemetry(state_result.command)

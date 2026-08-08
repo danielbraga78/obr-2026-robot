@@ -37,6 +37,7 @@ class SerialTransport:
         self._active_port: Optional[str] = None
         self._active_mode: Optional[str] = None
         self._watchdog_warned = False
+        self._lines_received = 0
 
     def connect(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -205,6 +206,8 @@ class SerialTransport:
             line, self._buffer = self._buffer.split("\n", 1)
             line = line.strip()
             if line:
+                self._lines_received += 1
+                logger.debug("Arduino -> %s", line)
                 try:
                     self._event_queue.put_nowait(line)
                 except queue.Full:
@@ -228,4 +231,9 @@ class SerialTransport:
             return
         if not self._watchdog_warned:
             self._watchdog_warned = True
-            logger.warning("Watchdog serial: %s sem resposta há %.1f s (conexão mantida)", self._active_port, silent_for)
+            logger.warning(
+                "Watchdog serial: %s sem resposta há %.1f s (conexão mantida; %d linhas recebidas até agora)",
+                self._active_port,
+                silent_for,
+                self._lines_received,
+            )
