@@ -23,6 +23,8 @@ constexpr uint8_t kMotor4In2Pin = 29;
 constexpr int kMaxMotorSpeed = 200;
 constexpr int kTestDurationMs = 2000;
 constexpr int kMotorAllSpeed = 150;
+constexpr uint8_t kLeftBridgeMotorCount = 2;
+constexpr uint8_t kRightBridgeMotorCount = 2;
 
 struct MotorChannel {
   uint8_t enablePin;
@@ -68,16 +70,28 @@ void setMotorSpeed(uint8_t motorIndex, int speed) {
   analogWrite(g_channels[motorIndex].enablePin, pwmValue);
 }
 
-void runAllMotorsTogether(int speed) {
+void runBridgeMotors(const char* bridgeName, const uint8_t* motorIndices, uint8_t count, int speed) {
   Serial.println();
-  Serial.print("[TEST] Todos os motores girando com velocidade ");
+  Serial.print("[TEST] ");
+  Serial.print(bridgeName);
+  Serial.print(" | velocidade ");
   Serial.println(speed);
-  for (uint8_t i = 0; i < 4; ++i) {
-    setMotorSpeed(i, speed);
+  for (uint8_t i = 0; i < count; ++i) {
+    setMotorSpeed(motorIndices[i], speed);
   }
   delay(kTestDurationMs);
   stopAllMotors();
   delay(1000);
+}
+
+void runBridgeA(int speed) {
+  const uint8_t leftMotorIndices[kLeftBridgeMotorCount] = {0, 1};
+  runBridgeMotors("Ponte A (esquerda)", leftMotorIndices, kLeftBridgeMotorCount, speed);
+}
+
+void runBridgeB(int speed) {
+  const uint8_t rightMotorIndices[kRightBridgeMotorCount] = {2, 3};
+  runBridgeMotors("Ponte B (direita)", rightMotorIndices, kRightBridgeMotorCount, speed);
 }
 
 void setup() {
@@ -88,12 +102,14 @@ void setup() {
 
   initMotors();
   Serial.println("Teste de motores iniciado.");
-  Serial.println("Todos os motores giram juntos por 2 segundos e param por 1 segundo.");
+  Serial.println("A Ponte A (esquerda) e a Ponte B (direita) giram separadamente por 2 segundos.");
 }
 
 void loop() {
-  runAllMotorsTogether(kMotorAllSpeed);
-  runAllMotorsTogether(-kMotorAllSpeed);
+  runBridgeA(kMotorAllSpeed);
+  runBridgeA(-kMotorAllSpeed);
+  runBridgeB(kMotorAllSpeed);
+  runBridgeB(-kMotorAllSpeed);
 
   Serial.println("Ciclo completo finalizado. Reiniciando...\n");
   delay(1000);

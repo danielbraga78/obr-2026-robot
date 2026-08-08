@@ -41,10 +41,10 @@ struct MotorChannel {
 };
 
 MotorChannel g_channels[kMotorCount] = {
-  {kMotor1EnablePin, kMotor1In1Pin, kMotor1In2Pin, "M1 (FL)"},
-  {kMotor2EnablePin, kMotor2In1Pin, kMotor2In2Pin, "M2 (FR)"},
-  {kMotor3EnablePin, kMotor3In1Pin, kMotor3In2Pin, "M3 (RL)"},
-  {kMotor4EnablePin, kMotor4In1Pin, kMotor4In2Pin, "M4 (RR)"},
+  {kMotor1EnablePin, kMotor1In1Pin, kMotor1In2Pin, "M1 (Ponte A - FL)"},
+  {kMotor2EnablePin, kMotor2In1Pin, kMotor2In2Pin, "M2 (Ponte A - RL)"},
+  {kMotor3EnablePin, kMotor3In1Pin, kMotor3In2Pin, "M3 (Ponte B - FR)"},
+  {kMotor4EnablePin, kMotor4In1Pin, kMotor4In2Pin, "M4 (Ponte B - RR)"},
 };
 
 uint8_t g_selected = 0;

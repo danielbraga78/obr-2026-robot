@@ -67,12 +67,14 @@ void setMotorSpeed(uint8_t motorIndex, int speed) {
   analogWrite(g_channels[motorIndex].enablePin, pwmValue);
 }
 
-void runSingleMotorTest(uint8_t motorIndex) {
+void runSingleMotorTest(const char* bridgeName, uint8_t motorIndex) {
   const int direction = random(0, 2) == 0 ? -1 : 1;
   const int speed = random(120, kMaxMotorSpeed + 1);
   const int finalSpeed = speed * direction;
 
-  Serial.print("[TEST] Motor ");
+  Serial.print("[TEST] ");
+  Serial.print(bridgeName);
+  Serial.print(" | motor ");
   Serial.print(motorIndex + 1);
   Serial.print(" | direcao ");
   Serial.print(direction > 0 ? "frente" : "tras");
@@ -96,10 +98,15 @@ void setup() {
   initMotors();
 
   Serial.println("Teste individual dos motores iniciado.");
-  Serial.println("Cada ciclo ativa um motor aleatorio por 1.2s e pausa por 0.8s.");
+  Serial.println("Cada ciclo ativa um motor aleatorio da Ponte A ou da Ponte B por 3.2s e pausa por 0.8s.");
 }
 
 void loop() {
-  const uint8_t motorIndex = static_cast<uint8_t>(random(0, 4));
-  runSingleMotorTest(motorIndex);
+  if (random(0, 2) == 0) {
+    const uint8_t motorIndex = static_cast<uint8_t>(random(0, 2));
+    runSingleMotorTest("Ponte A (esquerda)", motorIndex);
+  } else {
+    const uint8_t motorIndex = static_cast<uint8_t>(random(2, 4));
+    runSingleMotorTest("Ponte B (direita)", motorIndex);
+  }
 }
