@@ -92,7 +92,7 @@ void setup() {
 
 void loop() {
   runSequence("Frente", 150, 150, 150, 150);
-  runSequence("Re", -150, -150, -150, -150);
+  runSequence("Tras", -150, -150, -150, -150);
   runSequence("Direita", 150, -150, -150, 150);
   runSequence("Esquerda", -150, 150, 150, -150);
   runSequence("RotacaoHorario", 150, -150, 150, -150);
