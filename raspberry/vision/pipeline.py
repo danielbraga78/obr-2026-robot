@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
@@ -17,6 +18,9 @@ logger = logging.getLogger(__name__)
 class VisionResult:
     detections: Dict[str, object] = field(default_factory=dict)
     processed_frame_shape: Optional[tuple[int, int]] = None
+    # Momento (time.monotonic) em que o frame foi capturado. É o que permite ao
+    # loop principal medir a idade real do resultado.
+    captured_at: float = field(default_factory=time.monotonic)
 
 
 class VisionPipeline:
@@ -29,10 +33,11 @@ class VisionPipeline:
         self.process_height = process_height or VISION_PROCESS_HEIGHT
         self.roi = roi or VISION_ROI
 
-    def process_frame(self, frame: Optional[np.ndarray]) -> Optional[VisionResult]:
+    def process_frame(self, frame: Optional[np.ndarray], captured_at: Optional[float] = None) -> Optional[VisionResult]:
         if frame is None:
             return None
 
+        captured_at = captured_at if captured_at is not None else time.monotonic()
         working_frame = self._prepare_frame(frame)
         if working_frame is None:
             return None
@@ -50,7 +55,7 @@ class VisionPipeline:
                 logger.warning("Falha no detector %s: %s", name, exc)
                 detections[name] = None
 
-        return VisionResult(detections=detections, processed_frame_shape=working_frame.shape[:2])
+        return VisionResult(detections=detections, processed_frame_shape=working_frame.shape[:2], captured_at=captured_at)
 
     def _call_detector(self, detector, hsv: np.ndarray, working_frame: np.ndarray, source_frame: Optional[np.ndarray]) -> object:
         try:

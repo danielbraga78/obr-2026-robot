@@ -10,8 +10,9 @@ from ..config import LINE_MAX, LINE_MIN
 @dataclass
 class LineDetection:
     center_x: Optional[float] = None
-    error: Optional[float] = None
+    error: Optional[float] = None  # Pixels a partir do centro do quadro processado
     confidence: float = 0.0
+    frame_width: Optional[int] = None  # Largura do quadro em que o erro foi medido
 
 
 class LineDetector:
@@ -43,4 +44,4 @@ class LineDetector:
         width = frame.shape[1]
         error = center_x - (width / 2)
         confidence = min(1.0, area / 10000.0)
-        return LineDetection(center_x=center_x, error=error, confidence=confidence)
+        return LineDetection(center_x=center_x, error=error, confidence=confidence, frame_width=width)

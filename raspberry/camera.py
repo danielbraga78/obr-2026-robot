@@ -1,17 +1,42 @@
-import json
 import logging
-import os
-import subprocess
 import sys
+import time
 from abc import ABC, abstractmethod
-from typing import List, Optional, Sequence
+from functools import lru_cache
+from typing import Optional, Sequence
 
 import cv2
 import numpy as np
 
-from .config import CAMERA_BACKEND, CAMERA_BACKEND_PREFERENCE, CAMERA_FPS, CAMERA_HEIGHT, CAMERA_WIDTH
+from .config import (
+    CAMERA_BACKEND,
+    CAMERA_BACKEND_PREFERENCE,
+    CAMERA_FPS,
+    CAMERA_HEIGHT,
+    CAMERA_READ_FAILURE_LIMIT,
+    CAMERA_RECONNECT_DELAY,
+    CAMERA_WARMUP_FRAMES,
+    CAMERA_WIDTH,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def opencv_has_gstreamer() -> bool:
+    """Indica se este build do OpenCV consegue abrir pipelines GStreamer.
+
+    Os wheels do pip (opencv-python / opencv-python-headless) não têm GStreamer,
+    então tentar rpicamsrc/libcamerasrc neles falha sempre.
+    """
+    try:
+        for line in cv2.getBuildInformation().splitlines():
+            stripped = line.strip()
+            if stripped.startswith("GStreamer:"):
+                return "YES" in stripped.upper()
+    except Exception:  # pragma: no cover - getBuildInformation não deve falhar
+        return False
+    return False
 
 
 class CameraInterface(ABC):
@@ -39,19 +64,36 @@ class CameraManager(CameraInterface):
         self.fps = fps
         self.backend = backend
         self.capture = None
-        self._preview_window_name = "Visão da Câmera"
-        self._preview_enabled = False
+        self.picam = None
+        self._read_failures = 0
+        self._last_init_attempt = 0.0
+        self._last_error: Optional[str] = None
         self._initialize()
 
+    # ------------------------------------------------------------------
+    # Inicialização
+    # ------------------------------------------------------------------
     def _initialize(self) -> None:
-        self.capture = None
-        backends = self._resolve_backends(self.backend)
-        for candidate in backends:
+        self._teardown()
+        self._last_init_attempt = time.monotonic()
+        for candidate in self._resolve_backends(self.backend):
             if self._try_backend(candidate):
                 self.backend = candidate
-                logger.info("Câmera inicializada com backend %s", self.backend)
+                self._read_failures = 0
+                logger.info("Câmera inicializada com backend %s (%sx%s @ %s fps)", candidate, self.width, self.height, self.fps)
                 return
         logger.warning("Nenhum backend de câmera disponível")
+
+    def _reinitialize_if_due(self) -> bool:
+        """Reabre o backend respeitando CAMERA_RECONNECT_DELAY.
+
+        Sem esse limite, uma câmera ausente faria a thread de visão tentar
+        reabrir a cada iteração e travar o loop de controle.
+        """
+        if time.monotonic() - self._last_init_attempt < CAMERA_RECONNECT_DELAY:
+            return False
+        self._initialize()
+        return self.is_ready()
 
     def _resolve_backends(self, backend: str) -> Sequence[str]:
         if backend and backend != "auto":
@@ -60,23 +102,106 @@ class CameraManager(CameraInterface):
 
     def _try_backend(self, backend: str) -> bool:
         if backend == "picamera2":
-            try:
-                import picamera2  # noqa: F401
-            except Exception as exc:
-                logger.debug("Backend picamera2 indisponível: %s", exc)
-                return False
-        elif backend == "libcamera":
-            try:
-                import libcamera  # noqa: F401
-            except Exception as exc:
-                logger.debug("Backend libcamera indisponível: %s", exc)
-                return False
-
+            return self._try_picamera2()
         if backend == "opencv":
             return self._try_opencv_backends()
+        return self._try_gstreamer_backend(backend)
 
+    def _try_picamera2(self) -> bool:
+        """Backend nativo da câmera CSI no Raspberry Pi OS Bookworm."""
+        try:
+            from picamera2 import Picamera2
+        except Exception as exc:
+            logger.debug("Backend picamera2 indisponível: %s", exc)
+            return False
+
+        picam = None
+        try:
+            picam = Picamera2()
+            frame_duration = int(1_000_000 / max(self.fps, 1))
+            config = picam.create_video_configuration(
+                # "RGB888" no picamera2 entrega o array já na ordem BGR do OpenCV.
+                main={"size": (self.width, self.height), "format": "RGB888"},
+                controls={"FrameDurationLimits": (frame_duration, frame_duration)},
+                buffer_count=2,
+            )
+            picam.configure(config)
+            picam.start()
+            for _ in range(CAMERA_WARMUP_FRAMES):
+                picam.capture_array()
+            self.picam = picam
+            return True
+        except Exception as exc:
+            logger.debug("Falha ao inicializar picamera2: %s", exc)
+            if picam is not None:
+                try:
+                    picam.close()
+                except Exception:
+                    pass
+            self.picam = None
+            return False
+
+    def _try_opencv_backends(self) -> bool:
+        for index in (0, 1, 2, -1):
+            capture = self._open_index(index)
+            if capture is None:
+                continue
+            self._configure_capture(capture)
+            if self._prime_capture(capture):
+                self.capture = capture
+                return True
+            logger.debug("Câmera OpenCV no índice %s abriu mas não entregou frame", index)
+            capture.release()
+        return False
+
+    def _open_index(self, index: int):
+        apis = [cv2.CAP_V4L2, cv2.CAP_ANY] if sys.platform.startswith("linux") else [cv2.CAP_ANY]
+        for api in apis:
+            try:
+                capture = cv2.VideoCapture(index, api)
+            except Exception as exc:
+                logger.debug("Falha ao abrir câmera OpenCV no índice %s (api %s): %s", index, api, exc)
+                continue
+            if capture is not None and capture.isOpened():
+                return capture
+            if capture is not None:
+                capture.release()
+        return None
+
+    def _configure_capture(self, capture) -> None:
+        """Aplica resolução, taxa e fila de captura mínima."""
+        props = (
+            (cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")),  # YUYV limita a ~5 fps em muitas webcams
+            (cv2.CAP_PROP_FRAME_WIDTH, self.width),
+            (cv2.CAP_PROP_FRAME_HEIGHT, self.height),
+            (cv2.CAP_PROP_FPS, self.fps),
+            (cv2.CAP_PROP_BUFFERSIZE, 1),  # sem isso a fila acumula e o PID atua sobre imagem velha
+        )
+        for prop, value in props:
+            try:
+                capture.set(prop, value)
+            except Exception as exc:
+                logger.debug("Câmera não aceitou a propriedade %s: %s", prop, exc)
+
+    def _prime_capture(self, capture) -> bool:
+        """Confirma que o dispositivo entrega frames de verdade, não só abre."""
+        frame = None
+        for _ in range(max(CAMERA_WARMUP_FRAMES, 1)):
+            try:
+                ok, frame = capture.read()
+            except Exception as exc:
+                logger.debug("Falha ao ler frame de aquecimento: %s", exc)
+                return False
+            if not ok or frame is None:
+                return False
+        return frame is not None and getattr(frame, "size", 0) > 0
+
+    def _try_gstreamer_backend(self, backend: str) -> bool:
         pipeline = self._build_pipeline(backend)
         if not pipeline:
+            return False
+        if not opencv_has_gstreamer():
+            logger.debug("OpenCV sem suporte a GStreamer; backend %s indisponível", backend)
             return False
 
         try:
@@ -85,119 +210,85 @@ class CameraManager(CameraInterface):
             logger.debug("Falha ao abrir backend %s: %s", backend, exc)
             return False
 
-        if capture.isOpened():
+        if capture.isOpened() and self._prime_capture(capture):
             self.capture = capture
             return True
         capture.release()
         return False
 
-    def _try_opencv_backends(self) -> bool:
-        for index in (0, 1, 2, -1):
-            if not self._probe_opencv_backend(index):
-                continue
-            try:
-                capture = cv2.VideoCapture(index)
-            except Exception as exc:
-                logger.debug("Falha ao abrir câmera OpenCV no índice %s: %s", index, exc)
-                continue
-            if capture.isOpened():
-                self.capture = capture
-                return True
-            capture.release()
-        return False
-
-    def _probe_opencv_backend(self, index: int) -> bool:
-        probe_code = (
-            "import json, sys; import cv2; "
-            "cap = cv2.VideoCapture(int(sys.argv[1])); "
-            "print(json.dumps({'opened': bool(cap.isOpened())}))"
-        )
-        try:
-            completed = subprocess.run(
-                [sys.executable, "-c", probe_code, str(index)],
-                capture_output=True,
-                text=True,
-                timeout=2,
-                check=False,
-            )
-        except (subprocess.TimeoutExpired, OSError, ValueError) as exc:
-            logger.debug("Falha na verificação da câmera OpenCV no índice %s: %s", index, exc)
-            return False
-
-        if completed.returncode != 0:
-            logger.debug("Probe OpenCV para índice %s falhou com código %s: %s", index, completed.returncode, completed.stderr.strip())
-            return False
-
-        try:
-            payload = json.loads(completed.stdout.strip() or "{}")
-        except json.JSONDecodeError:
-            logger.debug("Resposta inválida do probe OpenCV para índice %s: %s", index, completed.stdout.strip())
-            return False
-
-        return bool(payload.get("opened", False))
-
     def _build_pipeline(self, backend: str) -> Optional[str]:
+        caps = f"width={self.width},height={self.height},framerate={self.fps}/1"
         if backend == "rpicam":
-            return (
-                "rpicamsrc ! "
-                "video/x-raw,width=640,height=480,framerate=30/1 ! "
-                "videoconvert ! appsink"
-            )
+            return f"rpicamsrc ! video/x-raw,{caps} ! videoconvert ! appsink drop=true max-buffers=1"
         if backend == "libcamera":
-            return (
-                "libcamerasrc ! "
-                "video/x-raw,width=640,height=480,format=YUY2,framerate=30/1 ! "
-                "videoconvert ! appsink"
-            )
+            return f"libcamerasrc ! video/x-raw,{caps},format=YUY2 ! videoconvert ! appsink drop=true max-buffers=1"
         return None
 
-    def _should_show_preview(self) -> bool:
-        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
-
-    def _show_preview(self, frame: np.ndarray) -> None:
-        if not self._preview_enabled and self._should_show_preview():
-            try:
-                cv2.namedWindow(self._preview_window_name, cv2.WINDOW_NORMAL)
-                cv2.resizeWindow(self._preview_window_name, 640, 480)
-                self._preview_enabled = True
-            except Exception as exc:
-                logger.debug("Não foi possível abrir a janela de preview: %s", exc)
-                self._preview_enabled = False
-                return
-
-        if not self._preview_enabled:
-            return
-
-        try:
-            cv2.imshow(self._preview_window_name, frame)
-            cv2.waitKey(1)
-        except Exception as exc:
-            logger.debug("Falha ao exibir preview: %s", exc)
-            self._preview_enabled = False
-
+    # ------------------------------------------------------------------
+    # Captura
+    # ------------------------------------------------------------------
     def read_frame(self) -> Optional[np.ndarray]:
-        if not self.is_ready():
-            self._initialize()
-            if not self.is_ready():
-                return None
-        ok, frame = self.capture.read()
-        if not ok or frame is None:
-            self._last_error = "Falha ao ler frame"
-            self._initialize()
+        if not self.is_ready() and not self._reinitialize_if_due():
             return None
-        self._show_preview(frame)
+
+        frame = self._grab_frame()
+        if frame is None:
+            self._read_failures += 1
+            self._last_error = "Falha ao ler frame"
+            if self._read_failures >= CAMERA_READ_FAILURE_LIMIT:
+                logger.warning("Câmera sem frames válidos (%s falhas); reabrindo backend %s", self._read_failures, self.backend)
+                self._teardown()
+            return None
+
+        self._read_failures = 0
+        return frame
+
+    def _grab_frame(self) -> Optional[np.ndarray]:
+        if self.picam is not None:
+            try:
+                frame = self.picam.capture_array()
+            except Exception as exc:
+                logger.debug("Falha ao capturar frame do picamera2: %s", exc)
+                return None
+            return frame if frame is not None and frame.size > 0 else None
+
+        if self.capture is None:
+            return None
+        try:
+            ok, frame = self.capture.read()
+        except Exception as exc:
+            logger.debug("Falha ao ler frame: %s", exc)
+            return None
+        if not ok or frame is None:
+            return None
         return frame
 
     def is_ready(self) -> bool:
+        if self.picam is not None:
+            return True
         return self.capture is not None and self.capture.isOpened()
 
-    def release(self) -> None:
+    @property
+    def last_error(self) -> Optional[str]:
+        return self._last_error
+
+    # ------------------------------------------------------------------
+    # Encerramento
+    # ------------------------------------------------------------------
+    def _teardown(self) -> None:
         if self.capture is not None:
-            self.capture.release()
-            self.capture = None
-        if self._preview_enabled:
             try:
-                cv2.destroyWindow(self._preview_window_name)
+                self.capture.release()
             except Exception:
                 pass
-            self._preview_enabled = False
+            self.capture = None
+        if self.picam is not None:
+            try:
+                self.picam.stop()
+                self.picam.close()
+            except Exception:
+                pass
+            self.picam = None
+
+    def release(self) -> None:
+        self._teardown()

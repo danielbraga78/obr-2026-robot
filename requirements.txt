@@ -1,5 +1,12 @@
-opencv-python-headless>=4.10.0
+# opencv-python (com GUI) é obrigatório para o preview na tela do Raspberry Pi.
+# O pacote opencv-python-headless NÃO tem janelas: imshow falha e o preview se desativa.
+opencv-python>=4.10.0
 numpy>=1.26.0
 pyserial>=3.5
 PyYAML>=6.0
 pytest>=8.0
+
+# Câmera CSI (Camera Module): picamera2 não é instalável de forma confiável pelo pip.
+# Instale pelo sistema e crie o venv enxergando os pacotes do sistema:
+#   sudo apt install -y python3-picamera2
+#   python3 -m venv --system-site-packages .venv

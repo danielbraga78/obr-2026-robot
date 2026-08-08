@@ -11,6 +11,7 @@ if __package__ is None or __package__ == "":
 from raspberry.camera import CameraManager
 from raspberry.config import CAMERA_BACKEND, SERIAL_BAUDRATE, SERIAL_MODE, SERIAL_PORT, SERIAL_RECONNECT_DELAY, SERIAL_TIMEOUT, SENSORS_ENABLED, RobotContext
 from raspberry.serial_manager import SerialManager
+from raspberry.preview import PreviewWindow
 from raspberry.state_machine import RobotStateMachine
 from raspberry.strategy import Strategy
 from raspberry.runtime import ExecutionLoopController
@@ -70,10 +71,13 @@ class RobotApp:
         self.result_queue: queue.Queue = queue.Queue(maxsize=2)
         self._stop_event = threading.Event()
         self.last_frame = None
-        self.last_result_timestamp = None
-        # Locks para evitar race conditions entre vision_thread e main loop
+        # Lock para evitar race conditions entre vision_thread e main loop
         self._frame_lock = threading.Lock()
-        self._result_timestamp_lock = threading.Lock()
+        self._last_telemetry_log = 0.0
+        self._vision_fps = 0.0
+        self._last_capture_at = None
+        self.preview = PreviewWindow()
+        logger.info("Câmera: backend=%s | %s", self.camera.backend, self.preview.describe_status())
         self.loop_controller = ExecutionLoopController(target_hz=20.0)
         self._vision_thread = threading.Thread(target=self._vision_loop, daemon=True)
         self._vision_thread.start()
@@ -89,27 +93,26 @@ class RobotApp:
                     result = self.result_queue.get_nowait()
                 except queue.Empty:
                     result = None
+                with self._frame_lock:
+                    current_frame = self.last_frame
+                if result is not None and self.loop_controller.is_result_stale(result.captured_at):
+                    logger.debug("Resultado visual descartado por idade (%.0f ms)", (time.monotonic() - result.captured_at) * 1000.0)
+                    result = None
                 if result is not None:
-                    with self._result_timestamp_lock:
-                        timestamp = self.last_result_timestamp
-                    if self.loop_controller.is_result_stale(timestamp):
-                        result = None
-                    else:
-                        with self._result_timestamp_lock:
-                            self.last_result_timestamp = time.monotonic()
-                        self._update_context_from_result(result)
-                        decision = self.strategy.evaluate(self.context)
-                        if decision.next_state:
-                            self.context.current_state = decision.next_state
-                            self.machine.transition_to(decision.next_state)
-                        with self._frame_lock:
-                            current_frame = self.last_frame
-                        state_result = self.machine.run_once(self.context, current_frame, self.detectors)
-                        if state_result.command:
-                            summary = format_arduino_payload(self.context, state_result.command)
-                            logger.info("Visão detectada -> Arduino: %s", summary)
-                            self.serial.send_command(state_result.command)
-                            self.context.last_command = state_result.command
+                    self._update_context_from_result(result)
+                    decision = self.strategy.evaluate(self.context)
+                    if decision.next_state:
+                        self.context.current_state = decision.next_state
+                        self.machine.transition_to(decision.next_state)
+                    state_result = self.machine.run_once(self.context, current_frame, self.detectors)
+                    if state_result.command:
+                        self._log_telemetry(state_result.command)
+                        self.serial.send_command(state_result.command)
+                        self.context.last_command = state_result.command
+                self.preview.render(current_frame, self.context, self.context.last_command, self._preview_stats())
+                if self.preview.quit_requested:
+                    logger.info("Encerramento solicitado pela janela de preview")
+                    self._stop_event.set()
                 self.serial.send_heartbeat()
                 loop_latency_ms = (self.loop_controller.wait_for_next_cycle(cycle_start) - cycle_start) * 1000.0
                 self.loop_controller.record_latency(loop_latency_ms)
@@ -122,9 +125,11 @@ class RobotApp:
         while not self._stop_event.is_set():
             try:
                 frame = self.camera.read_frame()
+                captured_at = time.monotonic()
                 if frame is None:
                     time.sleep(0.05)
                     continue
+                self._track_vision_fps(captured_at)
                 with self._frame_lock:
                     self.last_frame = frame
                 try:
@@ -135,11 +140,8 @@ class RobotApp:
                     except queue.Empty:
                         pass
                     self.frame_queue.put_nowait(frame)
-                result = self.vision_pipeline.process_frame(frame)
+                result = self.vision_pipeline.process_frame(frame, captured_at=captured_at)
                 if result is not None:
-                    with self._result_timestamp_lock:
-                        if self.last_result_timestamp is None:
-                            self.last_result_timestamp = time.monotonic()
                     try:
                         self.result_queue.put_nowait(result)
                     except queue.Full:
@@ -151,6 +153,32 @@ class RobotApp:
             except Exception as exc:
                 logger.debug("Falha no processamento visual: %s", exc)
                 time.sleep(0.05)
+
+    def _track_vision_fps(self, captured_at: float) -> None:
+        """Média móvel da taxa real de captura, exibida no preview."""
+        if self._last_capture_at is not None:
+            delta = captured_at - self._last_capture_at
+            if delta > 0:
+                self._vision_fps = 0.8 * self._vision_fps + 0.2 * (1.0 / delta)
+        self._last_capture_at = captured_at
+
+    def _preview_stats(self) -> str:
+        camera = f"{self.camera.backend}" if self.context.camera_ready else "SEM CAMERA"
+        serial = "ok" if self.context.serial_ready else "SEM SERIAL"
+        return f"cam: {camera} {self._vision_fps:.0f} fps | loop: {self.loop_controller.average_latency_ms:.0f} ms | serial: {serial}"
+
+    def _log_telemetry(self, command: str) -> None:
+        """Registra o resumo visão->Arduino.
+
+        O loop roda a 20 Hz; escrever em stdout a cada comando inunda o console e
+        adiciona latência ao controle. INFO sai no máximo 1x/s, DEBUG sai sempre.
+        """
+        summary = format_arduino_payload(self.context, command)
+        logger.debug("Visão detectada -> Arduino: %s", summary)
+        now = time.monotonic()
+        if now - self._last_telemetry_log >= 1.0:
+            self._last_telemetry_log = now
+            logger.info("Visão detectada -> Arduino: %s", summary)
 
     def _update_context_from_result(self, result) -> None:
         if result is None:
@@ -188,6 +216,7 @@ class RobotApp:
         # Aguardar vision thread terminar (máximo 2 segundos)
         if self._vision_thread.is_alive():
             self._vision_thread.join(timeout=2.0)
+        self.preview.close()
         self.camera.release()
         self.serial.close()
         logger.info("Robô encerrado com sucesso")

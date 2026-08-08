@@ -20,14 +20,34 @@ CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
 CAMERA_BACKEND = "auto"  # "auto", "picamera2", "libcamera", "rpicam", "opencv"
 CAMERA_RECONNECT_DELAY = 0.5
-CAMERA_BACKEND_PREFERENCE = ("rpicam", "picamera2", "libcamera", "opencv")
+# picamera2 primeiro: é o caminho nativo da câmera CSI no Raspberry Pi OS Bookworm.
+# Os backends GStreamer só funcionam se o OpenCV foi compilado com GStreamer
+# (o wheel do pip não é); opencv fica por último como fallback para webcam USB.
+CAMERA_BACKEND_PREFERENCE = ("picamera2", "libcamera", "rpicam", "opencv")
+CAMERA_READ_FAILURE_LIMIT = 3  # Falhas seguidas de leitura antes de reabrir o backend
+CAMERA_WARMUP_FRAMES = 3  # Frames descartados na abertura (auto-exposição)
+
+# ============================================================================
+# Configuração do Preview (janela na tela do Raspberry Pi)
+# ============================================================================
+# "auto" = mostra se houver display (DISPLAY/WAYLAND_DISPLAY definidos)
+# "on"   = tenta sempre (útil para forçar via SSH com X11 forwarding)
+# "off"  = desliga
+# A variável de ambiente ROBOT_PREVIEW sobrepõe este valor.
+PREVIEW_MODE = "auto"
+PREVIEW_FPS = 15  # Taxa da janela; não afeta o loop de controle
+PREVIEW_WINDOW_NAME = "OBR 2026 - Visao do Robo"
+PREVIEW_SHOW_OVERLAY = True  # Desenha ROI, linha detectada, estado e comando
 
 # ============================================================================
 # Configuração Processamento de Visão
 # ============================================================================
 VISION_PROCESS_WIDTH = 320
 VISION_PROCESS_HEIGHT = 240
-VISION_ROI = (0.0, 0.0, 1.0, 1.0)
+# (x0, y0, x1, y1) normalizados. Para seguir linha usamos só a faixa inferior do
+# quadro: é a parte da pista logo à frente do robô. Usar o quadro inteiro mistura
+# a linha próxima com curvas distantes e distorce o erro do PID.
+VISION_ROI = (0.0, 0.55, 1.0, 1.0)
 VISION_FRAME_TIMEOUT = 0.2
 
 # Thresholds para detectores de cor (HSV)
@@ -53,10 +73,19 @@ OBSTACLE_PROXIMITY_THRESHOLD_CM = 25  # Distância estimada para reagir
 # ============================================================================
 # Configuração PID (Controle de Navegação)
 # ============================================================================
-PID_KP = 0.35
-PID_KI = 0.01
-PID_KD = 0.05
-MAX_STEER = 80
+# O erro entregue ao PID é normalizado (-1.0 a 1.0) e a saída é o wz enviado ao
+# Arduino, na mesma escala de PWM dos motores (0-255). Ganhos são ponto de
+# partida: precisam ser afinados na pista.
+PID_KP = 60.0
+PID_KI = 0.2
+PID_KD = 18.0
+MAX_STEER = 80  # Autoridade máxima de giro (PWM)
+
+# Velocidades em unidades de PWM (o Arduino usa 0-255 direto no analogWrite).
+# Abaixo de ~60 os motores não vencem o atrito com carga.
+BASE_SPEED = 110  # Velocidade em reta
+MIN_SPEED = 70  # Velocidade nas curvas fechadas
+STEER_SIGN = 1.0  # Use -1.0 se o robô virar para o lado errado
 
 # ============================================================================
 # Estados da Máquina de Estados

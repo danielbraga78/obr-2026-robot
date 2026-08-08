@@ -1,20 +1,33 @@
-import subprocess
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from raspberry.camera import CameraManager
 
 
 class DummyCapture:
-    def __init__(self, opened: bool = True) -> None:
+    """Simula cv2.VideoCapture, incluindo dispositivos que abrem sem entregar frame."""
+
+    def __init__(self, opened: bool = True, delivers_frames: bool = True) -> None:
         self.opened = opened
+        self.delivers_frames = delivers_frames
+        self.props = {}
 
     def isOpened(self) -> bool:
         return self.opened
 
+    def set(self, prop, value) -> bool:
+        self.props[prop] = value
+        return True
+
     def read(self):
+        if not self.delivers_frames:
+            return False, None
         return True, np.zeros((10, 10, 3), dtype=np.uint8)
 
     def release(self) -> None:
@@ -22,10 +35,8 @@ class DummyCapture:
 
 
 class CameraManagerTests(unittest.TestCase):
-    @patch("raspberry.camera.subprocess.run")
     @patch("raspberry.camera.cv2.VideoCapture")
-    def test_camera_manager_falls_back_to_opencv_when_primary_backend_fails(self, mock_video_capture, mock_run) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout='{"opened": true}', stderr="")
+    def test_falls_back_to_opencv_when_primary_backends_fail(self, mock_video_capture) -> None:
         mock_video_capture.return_value = DummyCapture(True)
 
         manager = CameraManager(backend="auto")
@@ -33,13 +44,66 @@ class CameraManagerTests(unittest.TestCase):
         self.assertTrue(manager.is_ready())
         self.assertEqual(manager.backend, "opencv")
 
-    @patch("raspberry.camera.subprocess.run")
-    def test_camera_manager_uses_subprocess_probe_for_opencv(self, mock_run) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=139, stdout="", stderr="segfault")
+    @patch("raspberry.camera.cv2.VideoCapture")
+    def test_device_that_opens_without_frames_is_rejected(self, mock_video_capture) -> None:
+        mock_video_capture.return_value = DummyCapture(True, delivers_frames=False)
 
         manager = CameraManager(backend="opencv")
 
         self.assertFalse(manager.is_ready())
+        self.assertIsNone(manager.capture)
+
+    @patch("raspberry.camera.cv2.VideoCapture")
+    def test_capture_properties_are_applied(self, mock_video_capture) -> None:
+        import cv2
+
+        capture = DummyCapture(True)
+        mock_video_capture.return_value = capture
+
+        manager = CameraManager(width=800, height=600, fps=25, backend="opencv")
+
+        self.assertTrue(manager.is_ready())
+        self.assertEqual(capture.props[cv2.CAP_PROP_FRAME_WIDTH], 800)
+        self.assertEqual(capture.props[cv2.CAP_PROP_FRAME_HEIGHT], 600)
+        self.assertEqual(capture.props[cv2.CAP_PROP_FPS], 25)
+        self.assertEqual(capture.props[cv2.CAP_PROP_BUFFERSIZE], 1)
+
+    @patch("raspberry.camera.opencv_has_gstreamer", return_value=False)
+    @patch("raspberry.camera.cv2.VideoCapture")
+    def test_gstreamer_backend_skipped_without_gstreamer_support(self, mock_video_capture, _mock_support) -> None:
+        manager = CameraManager(backend="rpicam")
+
+        self.assertFalse(manager.is_ready())
+        mock_video_capture.assert_not_called()
+
+    @patch("raspberry.camera.cv2.VideoCapture")
+    def test_read_frame_only_reopens_after_reconnect_delay(self, mock_video_capture) -> None:
+        mock_video_capture.return_value = DummyCapture(True)
+        manager = CameraManager(backend="opencv")
+        manager._teardown()
+
+        with patch.object(manager, "_initialize") as mock_initialize:
+            self.assertIsNone(manager.read_frame())
+            mock_initialize.assert_not_called()  # dentro do CAMERA_RECONNECT_DELAY
+
+            manager._last_init_attempt -= 10.0
+            manager.read_frame()
+            mock_initialize.assert_called_once()
+
+    @patch("raspberry.camera.cv2.VideoCapture")
+    def test_read_frame_reopens_only_after_repeated_failures(self, mock_video_capture) -> None:
+        from raspberry.config import CAMERA_READ_FAILURE_LIMIT
+
+        capture = DummyCapture(True)
+        mock_video_capture.return_value = capture
+        manager = CameraManager(backend="opencv")
+        capture.delivers_frames = False
+
+        for _ in range(CAMERA_READ_FAILURE_LIMIT - 1):
+            self.assertIsNone(manager.read_frame())
+            self.assertIsNotNone(manager.capture)
+
+        self.assertIsNone(manager.read_frame())
         self.assertIsNone(manager.capture)
 
 

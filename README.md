@@ -349,10 +349,11 @@ sudo apt install -y libopencv-dev python3-opencv
 
 ```bash
 cd /home/pi/Desktop/novo_projeto
-python3 -m venv .venv
+# --system-site-packages é necessário para enxergar o picamera2 (câmera CSI)
+python3 -m venv --system-site-packages .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install numpy opencv-python pyserial pyyaml
+pip install -r requirements.txt
 ```
 
 ### 3. Configurar a câmera
@@ -368,7 +369,39 @@ Ative:
 - Interface Options → Camera
 - Serial Port (se for usar UART, conforme necessário)
 
-### 4. Configurar a serial
+Para a câmera CSI (Camera Module), o backend usado é o `picamera2`, que é instalado
+pelo sistema e não pelo pip. Por isso o venv precisa enxergar os pacotes do sistema:
+
+```bash
+sudo apt install -y python3-picamera2
+python3 -m venv --system-site-packages .venv
+```
+
+Câmera USB não precisa disso: cai no backend `opencv` automaticamente.
+
+### 4. Preview na tela
+
+Rodando em um terminal da área de trabalho do Raspberry Pi, o robô abre uma janela
+com a imagem da câmera ao vivo e o que a visão está detectando desenhado por cima:
+
+- retângulo azul: a ROI analisada (só a faixa inferior do quadro);
+- linha cinza vertical: o centro de referência do erro;
+- linha verde: onde a linha foi detectada;
+- círculo laranja: a bola, com a distância estimada;
+- barra superior: estado, comando enviado ao Arduino, erro em pixels, FPS da visão e latência do loop.
+
+Pressione `q` (ou ESC) com a janela em foco para encerrar o robô.
+
+O preview exige o pacote **`opencv-python`** — o `opencv-python-headless` não tem
+janelas e o preview se desativa sozinho, avisando no log. Controle pelo
+`PREVIEW_MODE` em [raspberry/config.py](raspberry/config.py) ou pela variável de ambiente:
+
+```bash
+ROBOT_PREVIEW=off ./run_robot.sh   # desliga
+ROBOT_PREVIEW=on  ./run_robot.sh   # força mesmo sem display detectado
+```
+
+### 5. Configurar a serial
 
 Para usar USB:
 
@@ -382,11 +415,11 @@ Para usar UART:
 ls /dev/serial0 /dev/ttyAMA0 /dev/ttyS0 2>/dev/null
 ```
 
-### 5. Gravar o firmware no Arduino
+### 6. Gravar o firmware no Arduino
 
 Abra o arquivo [arduino/robot.ino](arduino/robot.ino) no Arduino IDE e faça o upload para o microcontrolador.
 
-### 6. Configurar o Raspberry Pi
+### 7. Configurar o Raspberry Pi
 
 Edite os parâmetros em [raspberry/config.py](raspberry/config.py) conforme o hardware disponível.
 
