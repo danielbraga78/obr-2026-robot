@@ -6,19 +6,52 @@ Este documento descreve, de forma passo a passo e com alto nível de detalhe, co
 - 4 motores omnidirecionais;
 - 1 servo motor para a garra;
 - 1 sensor ultrassônico HC-SR04 (opcional, mas integrado no firmware);
-- 1 Arduino Uno/Nano;
+- 1 Arduino Mega 2560 (o firmware atual foi escrito para este modelo);
 - 1 Raspberry Pi.
 
 O objetivo é que qualquer pessoa da equipe consiga montar, conectar, testar e diagnosticar o sistema sem depender de conhecimento tácito.
 
 ---
 
+### Mapeamento de pinos do firmware atual (Arduino Mega 2560)
+
+O sketch em [arduino/robot_mega.ino](arduino/robot_mega.ino) usa os seguintes pinos para o robô:
+
+- Motor 1: enable em D2, IN1 em D22, IN2 em D23
+- Motor 2: enable em D3, IN1 em D24, IN2 em D25
+- Motor 3: enable em D4, IN1 em D26, IN2 em D27
+- Motor 4: enable em D5, IN1 em D28 (A4), IN2 em D29 (A5)
+- Servo da garra: pino D44
+- Sensor ultrassônico: TRIG em A2, ECHO em A3
+
+> O firmware atual não usa um pino STBY dedicado; o controle é feito pelos pinos de enable e direção. Não existe um pino do Mega reservado para STBY neste firmware.
+
+### Resumo exato das conexões no Arduino Mega
+
+| Componente | Pino no Arduino Mega | Função |
+|---|---|---|
+| Ponte H A — canal A enable/PWM | D2 | PWM do motor 1 |
+| Ponte H A — canal A IN1 | D22 | direção do motor 1 |
+| Ponte H A — canal A IN2 | D23 | direção do motor 1 |
+| Ponte H A — canal B enable/PWM | D3 | PWM do motor 2 |
+| Ponte H A — canal B IN1 | D24 | direção do motor 2 |
+| Ponte H A — canal B IN2 | D25 | direção do motor 2 |
+| Ponte H B — canal A enable/PWM | D4 | PWM do motor 3 |
+| Ponte H B — canal A IN1 | D26 | direção do motor 3 |
+| Ponte H B — canal A IN2 | D27 | direção do motor 3 |
+| Ponte H B — canal B enable/PWM | D5 | PWM do motor 4 |
+| Ponte H B — canal B IN1 | D28 (A4) | direção do motor 4 |
+| Ponte H B — canal B IN2 | D29 (A5) | direção do motor 4 |
+| Servo da garra | D44 | sinal de controle |
+| Sensor ultrassônico TRIG | A2 | disparo |
+| Sensor ultrassônico ECHO | A3 | eco |
+
 ## 1. Lista de componentes
 
 ### Controle e processamento
 
 - 1 Raspberry Pi 5 (ou 4)
-- 1 Arduino Uno ou Nano
+- 1 Arduino Mega 2560
 - 2 módulos TB6612FNG
 - 1 servo motor da garra
 - 1 sensor ultrassônico HC-SR04
@@ -86,37 +119,36 @@ A primeira ponte H controlará dois motores: FL e FR.
 
 ### Pinos da ponte A
 
-| Pino | Função | Conexão no robô |
+| Pino da ponte H | Função | Conexão exata no Arduino Mega |
 |---|---|---|
-| VM | alimentação dos motores | bateria / fonte de motores |
-| VCC | alimentação da lógica | 5 V do Arduino ou regulador estável |
-| GND | terra comum | GND da bateria + GND do Arduino |
-| STBY | habilita/desabilita o driver | pino digital do Arduino |
-| PWMA | PWM motor A | pino PWM do Arduino |
-| AIN1 | direção motor A | pino digital do Arduino |
-| AIN2 | direção motor A | pino digital do Arduino |
-| AO1 | saída motor A | terminal do motor FL |
-| AO2 | saída motor A | terminal do motor FL |
-| PWMB | PWM motor B | pino PWM do Arduino |
-| BIN1 | direção motor B | pino digital do Arduino |
-| BIN2 | direção motor B | pino digital do Arduino |
-| BO1 | saída motor B | terminal do motor FR |
-| BO2 | saída motor B | terminal do motor FR |
+| VM | alimentação dos motores | sem conexão direta ao Mega; ligar à bateria/fonte |
+| VCC | alimentação da lógica | 5 V do Mega |
+| GND | terra comum | GND do Mega e GND da bateria |
+| STBY | habilitação do driver | não usado pelo firmware atual; não há pino do Mega associado |
+| PWMA | PWM do canal A | D2 |
+| AIN1 | direção do canal A | D22 |
+| AIN2 | direção do canal A | D23 |
+| AO1 | saída do canal A | terminal do motor FL |
+| AO2 | saída do canal A | terminal do motor FL |
+| PWMB | PWM do canal B | D3 |
+| BIN1 | direção do canal B | D24 |
+| BIN2 | direção do canal B | D25 |
+| BO1 | saída do canal B | terminal do motor FR |
+| BO2 | saída do canal B | terminal do motor FR |
 
 ### Conexão física sugerida para a Ponte A
 
 | Componente | Conexão |
 |---|---|
 | VM da Ponte A | positivo da alimentação dos motores |
-| VCC da Ponte A | 5 V do Arduino |
-| GND da Ponte A | GND do Arduino e GND da bateria |
-| STBY da Ponte A | pino D12 do Arduino |
-| PWMA da Ponte A | pino D3 do Arduino (Mega: pino 2 recomendado) |
-| AIN1 da Ponte A | pino D4 do Arduino (Mega: pino 22 recomendado) |
-| AIN2 da Ponte A | pino D5 do Arduino (Mega: pino 23 recomendado) |
-| PWMB da Ponte A | pino D6 do Arduino |
-| BIN1 da Ponte A | pino D7 do Arduino |
-| BIN2 da Ponte A | pino D8 do Arduino |
+| VCC da Ponte A | 5 V do Mega |
+| GND da Ponte A | GND do Mega e GND da bateria |
+| Enable/ PWM do canal A | pino D2 do Mega |
+| IN1 do canal A | pino D22 do Mega |
+| IN2 do canal A | pino D23 do Mega |
+| Enable/ PWM do canal B | pino D3 do Mega |
+| IN1 do canal B | pino D24 do Mega |
+| IN2 do canal B | pino D25 do Mega |
 | AO1/AO2 | motor FL |
 | BO1/BO2 | motor FR |
 
@@ -132,37 +164,36 @@ A segunda ponte H controlará os motores RL e RR.
 
 ### Pinos da ponte B
 
-| Pino | Função | Conexão no robô |
+| Pino da ponte H | Função | Conexão exata no Arduino Mega |
 |---|---|---|
-| VM | alimentação dos motores | mesma bateria / fonte de motores |
-| VCC | alimentação da lógica | 5 V do Arduino ou regulador estável |
-| GND | terra comum | GND da bateria + GND do Arduino |
-| STBY | habilita/desabilita o driver | pino digital do Arduino |
-| PWMA | PWM motor A | pino PWM do Arduino |
-| AIN1 | direção motor A | pino digital do Arduino |
-| AIN2 | direção motor A | pino digital do Arduino |
-| AO1 | saída motor A | terminal do motor RL |
-| AO2 | saída motor A | terminal do motor RL |
-| PWMB | PWM motor B | pino PWM do Arduino |
-| BIN1 | direção motor B | pino digital do Arduino |
-| BIN2 | direção motor B | pino digital do Arduino |
-| BO1 | saída motor B | terminal do motor RR |
-| BO2 | saída motor B | terminal do motor RR |
+| VM | alimentação dos motores | sem conexão direta ao Mega; ligar à bateria/fonte |
+| VCC | alimentação da lógica | 5 V do Mega |
+| GND | terra comum | GND do Mega e GND da bateria |
+| STBY | habilitação do driver | não usado pelo firmware atual; não há pino do Mega associado |
+| PWMA | PWM do canal A | D4 |
+| AIN1 | direção do canal A | D26 |
+| AIN2 | direção do canal A | D27 |
+| AO1 | saída do canal A | terminal do motor RL |
+| AO2 | saída do canal A | terminal do motor RL |
+| PWMB | PWM do canal B | D5 |
+| BIN1 | direção do canal B | D28 (A4) |
+| BIN2 | direção do canal B | D29 (A5) |
+| BO1 | saída do canal B | terminal do motor RR |
+| BO2 | saída do canal B | terminal do motor RR |
 
 ### Conexão física sugerida para a Ponte B
 
 | Componente | Conexão |
 |---|---|
 | VM da Ponte B | mesmo positivo da alimentação dos motores |
-| VCC da Ponte B | 5 V do Arduino |
-| GND da Ponte B | GND do Arduino e GND da bateria |
-| STBY da Ponte B | pino D12 do Arduino ou outro pino livre |
-| PWMA da Ponte B | pino D9 do Arduino (Mega: pino 4 recomendado) |
-| AIN1 da Ponte B | pino D10 do Arduino (Mega: pino 26 recomendado) |
-| AIN2 da Ponte B | pino D11 do Arduino (Mega: pino 27 recomendado) |
-| PWMB da Ponte B | pino D13 do Arduino (Mega: pino 5 recomendado) |
-| BIN1 da Ponte B | pino A0 do Arduino (Mega: pino 28 recomendado) |
-| BIN2 da Ponte B | pino A1 do Arduino (Mega: pino 29 recomendado) |
+| VCC da Ponte B | 5 V do Mega |
+| GND da Ponte B | GND do Mega e GND da bateria |
+| Enable/ PWM do canal A | pino D4 do Mega |
+| IN1 do canal A | pino D26 do Mega |
+| IN2 do canal A | pino D27 do Mega |
+| Enable/ PWM do canal B | pino D5 do Mega |
+| IN1 do canal B | pino D28 do Mega (A4) |
+| IN2 do canal B | pino D29 do Mega (A5) |
 | AO1/AO2 | motor RL |
 | BO1/BO2 | motor RR |
 
@@ -202,12 +233,12 @@ O firmware do Arduino usa os pinos A2 e A3 para o sensor ultrassônico.
 
 ### Pinagem do HC-SR04
 
-| Pino | Função | Conexão |
+| Pino do sensor | Função | Conexão exata no Arduino Mega |
 |---|---|---|
-| VCC | 5 V | 5 V do Arduino |
-| TRIG | disparo | pino A2 do Arduino |
-| ECHO | eco | pino A3 do Arduino |
-| GND | terra | GND do Arduino |
+| VCC | 5 V | 5 V do Mega |
+| TRIG | disparo | A2 |
+| ECHO | eco | A3 |
+| GND | terra | GND do Mega |
 
 ### Posicionamento físico
 
@@ -231,11 +262,11 @@ O firmware usa o pino D2 para o servo da garra.
 
 ### Pinagem típica do servo
 
-| Pino | Função | Conexão |
+| Pino do servo | Função | Conexão exata no Arduino Mega |
 |---|---|---|
-| VCC | alimentação | 5 V do Arduino |
-| GND | terra | GND do Arduino |
-| Sinal | controle PWM | pino D2 do Arduino |
+| VCC | alimentação | 5 V do Mega |
+| GND | terra | GND do Mega |
+| Sinal | controle PWM | D44 |
 
 ### Posicionamento físico
 
@@ -360,7 +391,7 @@ O firmware usa o pino D2 para o servo da garra.
 
 - VCC no 5V;
 - GND no GND;
-- sinal no D2.
+- sinal no pino D44 do Mega.
 
 ### Passo 8 — Conectar sensor ultrassônico
 
@@ -758,7 +789,7 @@ graph TD
     A["Câmera USB/CSI"] -->|Imagem| B["Raspberry Pi 5"]
     B -->|Visão| C["Detecção de Obstáculos"]
     B -->|Controle| D["Comunicação Serial"]
-    D -->|Comandos| E["Arduino Uno/Nano"]
+    D -->|Comandos| E["Arduino Mega 2560"]
     E -->|PWM| F["Driver de Motores"]
     F -->|Controle| G["4 Motores DC"]
     E -->|PWM| H["Servo da Garra"]
@@ -805,11 +836,11 @@ sequenceDiagram
                     │
                     ↓
 ┌─────────────────────────────────────────┐
-│  Arduino Uno                            │
+│  Arduino Mega 2560                     │
 │  ├─ D0,D1 ──→ Serial (Raspberry)       │
-│  ├─ D2 ──→ Servo                       │
-│  ├─ D3-D11, A0-A1 ──→ Driver Motores  │
-│  └─ A2,A3 (Futuros: Ultrassônico)     │
+│  ├─ D44 ──→ Servo                      │
+│  ├─ D2-D5, D22-D29 ──→ Driver Motores │
+│  └─ A2,A3 ──→ Ultrassônico            │
 └─────────────────────────────────────────┘
          │               │
          ↓               ↓
@@ -840,8 +871,8 @@ sequenceDiagram
 - [ ] **Raspberry Pi**: Encaixar SDCard, SSD (se houver)
 - [ ] **Câmera CSI**: Conectar ribbon cable ao conector CSI
 - [ ] **Arduino**: Conectar via USB ao Raspberry Pi
-- [ ] **Driver de Motores**: Conectar pinos do Arduino (D3-D11, A0-A1)
-- [ ] **Servo**: Conectar sinal (D2), 5V, GND
+- [ ] **Driver de Motores**: Conectar pinos do Arduino (D2-D5 e D22-D29)
+- [ ] **Servo**: Conectar sinal (D44), 5V, GND
 - [ ] **Motores**: Conectar ao driver
 - [ ] **Bateria/Fonte**: Conectar com segurança (fusível recomendado)
 - [ ] **GND Comum**: Verificar que todos os negativos estão conectados

@@ -15,6 +15,7 @@ from raspberry.state_machine import RobotStateMachine
 from raspberry.strategy import Strategy
 from raspberry.runtime import ExecutionLoopController
 from raspberry.states.alignment import AlignBallState
+from raspberry.telemetry import format_arduino_payload
 from raspberry.states.avoid_obstacle import AvoidObstacleState
 from raspberry.states.calibration import CalibrationState
 from raspberry.states.capture_ball import CaptureBallState
@@ -105,6 +106,8 @@ class RobotApp:
                             current_frame = self.last_frame
                         state_result = self.machine.run_once(self.context, current_frame, self.detectors)
                         if state_result.command:
+                            summary = format_arduino_payload(self.context, state_result.command)
+                            logger.info("Visão detectada -> Arduino: %s", summary)
                             self.serial.send_command(state_result.command)
                             self.context.last_command = state_result.command
                 self.serial.send_heartbeat()

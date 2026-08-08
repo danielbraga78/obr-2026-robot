@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
@@ -38,6 +39,8 @@ class CameraManager(CameraInterface):
         self.fps = fps
         self.backend = backend
         self.capture = None
+        self._preview_window_name = "Visão da Câmera"
+        self._preview_enabled = False
         self._initialize()
 
     def _initialize(self) -> None:
@@ -148,6 +151,30 @@ class CameraManager(CameraInterface):
             )
         return None
 
+    def _should_show_preview(self) -> bool:
+        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+    def _show_preview(self, frame: np.ndarray) -> None:
+        if not self._preview_enabled and self._should_show_preview():
+            try:
+                cv2.namedWindow(self._preview_window_name, cv2.WINDOW_NORMAL)
+                cv2.resizeWindow(self._preview_window_name, 640, 480)
+                self._preview_enabled = True
+            except Exception as exc:
+                logger.debug("Não foi possível abrir a janela de preview: %s", exc)
+                self._preview_enabled = False
+                return
+
+        if not self._preview_enabled:
+            return
+
+        try:
+            cv2.imshow(self._preview_window_name, frame)
+            cv2.waitKey(1)
+        except Exception as exc:
+            logger.debug("Falha ao exibir preview: %s", exc)
+            self._preview_enabled = False
+
     def read_frame(self) -> Optional[np.ndarray]:
         if not self.is_ready():
             self._initialize()
@@ -158,6 +185,7 @@ class CameraManager(CameraInterface):
             self._last_error = "Falha ao ler frame"
             self._initialize()
             return None
+        self._show_preview(frame)
         return frame
 
     def is_ready(self) -> bool:
@@ -167,3 +195,9 @@ class CameraManager(CameraInterface):
         if self.capture is not None:
             self.capture.release()
             self.capture = None
+        if self._preview_enabled:
+            try:
+                cv2.destroyWindow(self._preview_window_name)
+            except Exception:
+                pass
+            self._preview_enabled = False

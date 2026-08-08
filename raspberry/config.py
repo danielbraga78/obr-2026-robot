@@ -20,7 +20,7 @@ CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
 CAMERA_BACKEND = "auto"  # "auto", "picamera2", "libcamera", "rpicam", "opencv"
 CAMERA_RECONNECT_DELAY = 0.5
-CAMERA_BACKEND_PREFERENCE = ("opencv", "picamera2", "libcamera", "rpicam")
+CAMERA_BACKEND_PREFERENCE = ("rpicam", "picamera2", "libcamera", "opencv")
 
 # ============================================================================
 # Configuração Processamento de Visão
