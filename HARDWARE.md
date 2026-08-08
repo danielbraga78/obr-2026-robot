@@ -3,6 +3,8 @@
 Este documento descreve, de forma passo a passo e com alto nível de detalhe, como montar fisicamente o robô usando:
 
 - 2 pontes H TB6612FNG;
+- 1 ponte H A para os motores da esquerda;
+- 1 ponte H B para os motores da direita;
 - 4 motores omnidirecionais;
 - 1 servo motor para a garra;
 - 1 sensor ultrassônico HC-SR04 (opcional, mas integrado no firmware);
@@ -30,18 +32,18 @@ O sketch em [arduino/robot_mega.ino](arduino/robot_mega.ino) usa os seguintes pi
 
 | Componente | Pino no Arduino Mega | Função |
 |---|---|---|
-| Ponte H A — canal A enable/PWM | D2 | PWM do motor 1 |
-| Ponte H A — canal A IN1 | D22 | direção do motor 1 |
-| Ponte H A — canal A IN2 | D23 | direção do motor 1 |
-| Ponte H A — canal B enable/PWM | D3 | PWM do motor 2 |
-| Ponte H A — canal B IN1 | D24 | direção do motor 2 |
-| Ponte H A — canal B IN2 | D25 | direção do motor 2 |
-| Ponte H B — canal A enable/PWM | D4 | PWM do motor 3 |
-| Ponte H B — canal A IN1 | D26 | direção do motor 3 |
-| Ponte H B — canal A IN2 | D27 | direção do motor 3 |
-| Ponte H B — canal B enable/PWM | D5 | PWM do motor 4 |
-| Ponte H B — canal B IN1 | D28 (A4) | direção do motor 4 |
-| Ponte H B — canal B IN2 | D29 (A5) | direção do motor 4 |
+| Ponte H A — canal A enable/PWM | D2 | PWM do motor esquerdo frontal |
+| Ponte H A — canal A IN1 | D22 | direção do motor esquerdo frontal |
+| Ponte H A — canal A IN2 | D23 | direção do motor esquerdo frontal |
+| Ponte H A — canal B enable/PWM | D3 | PWM do motor esquerdo traseiro |
+| Ponte H A — canal B IN1 | D24 | direção do motor esquerdo traseiro |
+| Ponte H A — canal B IN2 | D25 | direção do motor esquerdo traseiro |
+| Ponte H B — canal A enable/PWM | D4 | PWM do motor direito frontal |
+| Ponte H B — canal A IN1 | D26 | direção do motor direito frontal |
+| Ponte H B — canal A IN2 | D27 | direção do motor direito frontal |
+| Ponte H B — canal B enable/PWM | D5 | PWM do motor direito traseiro |
+| Ponte H B — canal B IN1 | D28 (A4) | direção do motor direito traseiro |
+| Ponte H B — canal B IN2 | D29 (A5) | direção do motor direito traseiro |
 | Servo da garra | D44 | sinal de controle |
 | Sensor ultrassônico TRIG | A2 | disparo |
 | Sensor ultrassônico ECHO | A3 | eco |
@@ -115,7 +117,7 @@ A ordem de conexão elétrica não precisa seguir a ordem física do chassi, mas
 
 ## 4. Montagem da primeira ponte H (TB6612FNG A)
 
-A primeira ponte H controlará dois motores: FL e FR.
+A ponte H A controla os motores da esquerda: FL e RL.
 
 ### Pinos da ponte A
 
@@ -133,8 +135,8 @@ A primeira ponte H controlará dois motores: FL e FR.
 | PWMB | PWM do canal B | D3 |
 | BIN1 | direção do canal B | D24 |
 | BIN2 | direção do canal B | D25 |
-| BO1 | saída do canal B | terminal do motor FR |
-| BO2 | saída do canal B | terminal do motor FR |
+| BO1 | saída do canal B | terminal do motor RL |
+| BO2 | saída do canal B | terminal do motor RL |
 
 ### Conexão física sugerida para a Ponte A
 
@@ -150,7 +152,7 @@ A primeira ponte H controlará dois motores: FL e FR.
 | IN1 do canal B | pino D24 do Mega |
 | IN2 do canal B | pino D25 do Mega |
 | AO1/AO2 | motor FL |
-| BO1/BO2 | motor FR |
+| BO1/BO2 | motor RL |
 
 ### Observação importante
 
@@ -160,7 +162,7 @@ Os pinos exatos podem ser alterados no firmware. O importante é manter a conven
 
 ## 5. Montagem da segunda ponte H (TB6612FNG B)
 
-A segunda ponte H controlará os motores RL e RR.
+A ponte H B controla os motores da direita: FR e RR.
 
 ### Pinos da ponte B
 
@@ -173,8 +175,8 @@ A segunda ponte H controlará os motores RL e RR.
 | PWMA | PWM do canal A | D4 |
 | AIN1 | direção do canal A | D26 |
 | AIN2 | direção do canal A | D27 |
-| AO1 | saída do canal A | terminal do motor RL |
-| AO2 | saída do canal A | terminal do motor RL |
+| AO1 | saída do canal A | terminal do motor FR |
+| AO2 | saída do canal A | terminal do motor FR |
 | PWMB | PWM do canal B | D5 |
 | BIN1 | direção do canal B | D28 (A4) |
 | BIN2 | direção do canal B | D29 (A5) |
@@ -194,7 +196,7 @@ A segunda ponte H controlará os motores RL e RR.
 | Enable/ PWM do canal B | pino D5 do Mega |
 | IN1 do canal B | pino D28 do Mega (A4) |
 | IN2 do canal B | pino D29 do Mega (A5) |
-| AO1/AO2 | motor RL |
+| AO1/AO2 | motor FR |
 | BO1/BO2 | motor RR |
 
 ### Atenção
@@ -212,8 +214,8 @@ Cada motor deve ser ligado aos dois pinos de saída de um canal.
 | Motor | Ponte H | Pinos de saída |
 |---|---|---|
 | FL | Ponte A | AO1 e AO2 |
-| FR | Ponte A | BO1 e BO2 |
-| RL | Ponte B | AO1 e AO2 |
+| RL | Ponte A | BO1 e BO2 |
+| FR | Ponte B | AO1 e AO2 |
 | RR | Ponte B | BO1 e BO2 |
 
 ### Passo a passo
