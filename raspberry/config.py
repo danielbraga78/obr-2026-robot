@@ -52,6 +52,15 @@ VISION_PROCESS_HEIGHT = 240
 VISION_ROI = (0.0, 0.55, 1.0, 1.0)
 VISION_FRAME_TIMEOUT = 0.2
 
+# Detecção da linha
+# "adaptive" usa Otsu no canal V e se ajusta sozinho à iluminação da arena.
+# "hsv" usa os limiares fixos LINE_MIN/LINE_MAX abaixo (frágil: fita preta sob
+# luz forte costuma ler V entre 90 e 130, acima do limite fixo).
+LINE_THRESHOLD_MODE = "adaptive"
+LINE_MIN_CONTRAST = 25  # Diferença mínima entre linha e piso para aceitar a máscara
+LINE_MAX_COVERAGE = 0.6  # Acima disso a "linha" virou o quadro todo: rejeita
+LINE_MIN_AREA = 100  # Área mínima do contorno, em pixels do quadro processado
+
 # Thresholds para detectores de cor (HSV)
 LINE_MIN = (0, 0, 0)
 LINE_MAX = (180, 150, 80)

@@ -109,7 +109,8 @@ class RobotApp:
                         self._log_telemetry(state_result.command)
                         self.serial.send_command(state_result.command)
                         self.context.last_command = state_result.command
-                self.preview.render(current_frame, self.context, self.context.last_command, self._preview_stats())
+                mask = getattr(self.detectors["line"], "last_mask", None) if self.preview.show_mask else None
+                self.preview.render(current_frame, self.context, self.context.last_command, self._preview_stats(), mask)
                 if self.preview.quit_requested:
                     logger.info("Encerramento solicitado pela janela de preview")
                     self._stop_event.set()

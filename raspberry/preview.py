@@ -48,6 +48,7 @@ class PreviewWindow:
         self.show_overlay = show_overlay
         self.min_interval = 1.0 / max(target_fps, 1)
         self.quit_requested = False
+        self.show_mask = False  # Alternado pela tecla 'm'
         self._state = "idle"  # idle | open | disabled
         self._last_render = 0.0
 
@@ -78,7 +79,7 @@ class PreviewWindow:
     # ------------------------------------------------------------------
     # Renderização
     # ------------------------------------------------------------------
-    def render(self, frame: Optional[np.ndarray], context=None, command: Optional[str] = None, stats: Optional[str] = None) -> None:
+    def render(self, frame: Optional[np.ndarray], context=None, command: Optional[str] = None, stats: Optional[str] = None, mask: Optional[np.ndarray] = None) -> None:
         if frame is None or self._state == "disabled" or not self.is_enabled():
             return
         if threading.current_thread() is not threading.main_thread():
@@ -91,16 +92,19 @@ class PreviewWindow:
         self._last_render = now
 
         try:
-            canvas = self._build_canvas(frame, context, command, stats)
+            canvas = self._build_canvas(frame, context, command, stats, mask)
             if self._state == "idle":
                 cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
                 cv2.resizeWindow(self.window_name, 640, 480)
                 self._state = "open"
-                logger.info("Preview aberto na tela do Raspberry Pi (pressione 'q' na janela para encerrar)")
+                logger.info("Preview aberto ('q' encerra, 'm' alterna a máscara da visão)")
             cv2.imshow(self.window_name, canvas)
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 self.quit_requested = True
+            elif key == ord("m"):
+                self.show_mask = not self.show_mask
+                logger.info("Máscara da visão: %s", "visível" if self.show_mask else "oculta")
         except Exception as exc:
             # Build headless não tem GUI: desliga de vez em vez de tentar a cada frame.
             logger.warning(
@@ -110,12 +114,14 @@ class PreviewWindow:
             )
             self._state = "disabled"
 
-    def _build_canvas(self, frame: np.ndarray, context, command: Optional[str], stats: Optional[str]) -> np.ndarray:
+    def _build_canvas(self, frame: np.ndarray, context, command: Optional[str], stats: Optional[str], mask: Optional[np.ndarray] = None) -> np.ndarray:
         canvas = self._to_bgr(frame)
         if not self.show_overlay:
             return canvas
         canvas = canvas.copy()
         roi = self._roi_pixels(canvas.shape[1], canvas.shape[0])
+        if self.show_mask:
+            self._draw_mask(canvas, roi, mask)
         self._draw_roi(canvas, roi)
         detections = dict(getattr(context, "last_detections", None) or {})
         self._draw_line(canvas, roi, detections.get("line"))
@@ -142,6 +148,23 @@ class PreviewWindow:
         cv2.putText(canvas, "ROI", (x0 + 6, y0 + 20), _FONT, 0.5, _COLOR_ROI, 1, cv2.LINE_AA)
         center = (x0 + x1) // 2
         cv2.line(canvas, (center, y0), (center, y1), _COLOR_CENTER, 1)
+
+    def _draw_mask(self, canvas: np.ndarray, roi: tuple[int, int, int, int], mask: Optional[np.ndarray]) -> None:
+        """Pinta de magenta o que o detector considerou linha.
+
+        É o que mostra a diferença entre o que você vê e o que a visão vê.
+        """
+        if mask is None or mask.size == 0:
+            return
+        x0, y0, x1, y1 = roi
+        if x1 <= x0 or y1 <= y0:
+            return
+        resized = cv2.resize(mask, (x1 - x0, y1 - y0), interpolation=cv2.INTER_NEAREST)
+        region = canvas[y0:y1, x0:x1]
+        tint = np.zeros_like(region)
+        tint[:, :] = (255, 0, 255)
+        selected = resized > 0
+        region[selected] = cv2.addWeighted(region, 0.35, tint, 0.65, 0)[selected]
 
     def _to_source_x(self, value: float, roi: tuple[int, int, int, int], processed_width: Optional[int]) -> int:
         """Converte coordenada do quadro processado de volta para o frame original."""
@@ -175,10 +198,17 @@ class PreviewWindow:
         rows = [
             f"estado: {getattr(context, 'current_state', '?')}",
             f"comando: {command or '-'}",
-            f"erro linha: {error:.1f} px" if isinstance(error, (int, float)) else "erro linha: sem linha",
         ]
+        if isinstance(error, (int, float)):
+            threshold = getattr(line, "threshold", None)
+            detail = f" | limiar {threshold:.0f}" if isinstance(threshold, (int, float)) else ""
+            rows.append(f"erro linha: {error:.1f} px | cobertura {getattr(line, 'coverage', 0.0):.1%}{detail}")
+        else:
+            rows.append(f"sem linha: {getattr(line, 'reason', None) or 'nenhuma deteccao'}")
         if stats:
             rows.append(stats)
+        if self.show_mask:
+            rows.append("mascara visivel (magenta = considerado linha) - 'm' alterna")
 
         overlay = canvas.copy()
         cv2.rectangle(overlay, (0, 0), (canvas.shape[1], 22 * len(rows) + 12), (0, 0, 0), -1)
