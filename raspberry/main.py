@@ -77,7 +77,7 @@ class RobotApp:
         self._vision_fps = 0.0
         self._last_capture_at = None
         self.preview = PreviewWindow()
-        logger.info("Câmera: backend=%s | %s", self.camera.backend, self.preview.describe_status())
+        logger.info("Câmera: %s | %s", self.camera.describe(), self.preview.describe_status())
         self.loop_controller = ExecutionLoopController(target_hz=20.0)
         self._vision_thread = threading.Thread(target=self._vision_loop, daemon=True)
         self._vision_thread.start()
@@ -163,7 +163,7 @@ class RobotApp:
         self._last_capture_at = captured_at
 
     def _preview_stats(self) -> str:
-        camera = f"{self.camera.backend}" if self.context.camera_ready else "SEM CAMERA"
+        camera = f"{self.camera.active_backend}" if self.context.camera_ready else "SEM CAMERA"
         serial = "ok" if self.context.serial_ready else "SEM SERIAL"
         return f"cam: {camera} {self._vision_fps:.0f} fps | loop: {self.loop_controller.average_latency_ms:.0f} ms | serial: {serial}"
 

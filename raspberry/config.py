@@ -26,6 +26,8 @@ CAMERA_RECONNECT_DELAY = 0.5
 CAMERA_BACKEND_PREFERENCE = ("picamera2", "libcamera", "rpicam", "opencv")
 CAMERA_READ_FAILURE_LIMIT = 3  # Falhas seguidas de leitura antes de reabrir o backend
 CAMERA_WARMUP_FRAMES = 3  # Frames descartados na abertura (auto-exposição)
+CAMERA_MAX_RECONNECT_DELAY = 5.0  # Teto do backoff quando não há câmera presente
+CAMERA_DIAGNOSTIC_INTERVAL = 15.0  # Intervalo entre diagnósticos repetidos no log
 
 # ============================================================================
 # Configuração do Preview (janela na tela do Raspberry Pi)

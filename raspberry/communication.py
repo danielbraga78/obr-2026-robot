@@ -36,6 +36,7 @@ class SerialTransport:
         self._last_message_received = 0.0
         self._active_port: Optional[str] = None
         self._active_mode: Optional[str] = None
+        self._watchdog_warned = False
 
     def connect(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -211,11 +212,20 @@ class SerialTransport:
                     self._event_queue.put_nowait(line)
 
     def _check_watchdog(self) -> None:
+        """Avisa sobre silêncio prolongado do Arduino, sem derrubar a porta.
+
+        Fechar e reabrir /dev/ttyACM* alterna o DTR e reinicia a placa, que fica
+        ~2 s no bootloader e volta a ficar em silêncio: o próprio watchdog criava
+        o silêncio que o disparava. Porta de fato morta é detectada na escrita.
+        """
         if not self._get_connected():
             return
-        if self.heartbeat_timeout > 0 and time.monotonic() - self._last_message_received > self.heartbeat_timeout:
-            logger.warning("Watchdog serial: sem comunicação recente em %s", self._active_port)
-            self._set_connected(False)
-            if self.serial and self.serial.is_open:
-                self.serial.close()
-            self.serial = None
+        if self.heartbeat_timeout <= 0:
+            return
+        silent_for = time.monotonic() - self._last_message_received
+        if silent_for <= self.heartbeat_timeout:
+            self._watchdog_warned = False
+            return
+        if not self._watchdog_warned:
+            self._watchdog_warned = True
+            logger.warning("Watchdog serial: %s sem resposta há %.1f s (conexão mantida)", self._active_port, silent_for)

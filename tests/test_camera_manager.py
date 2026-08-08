@@ -42,7 +42,7 @@ class CameraManagerTests(unittest.TestCase):
         manager = CameraManager(backend="auto")
 
         self.assertTrue(manager.is_ready())
-        self.assertEqual(manager.backend, "opencv")
+        self.assertEqual(manager.active_backend, "opencv")
 
     @patch("raspberry.camera.cv2.VideoCapture")
     def test_device_that_opens_without_frames_is_rejected(self, mock_video_capture) -> None:
@@ -105,6 +105,48 @@ class CameraManagerTests(unittest.TestCase):
 
         self.assertIsNone(manager.read_frame())
         self.assertIsNone(manager.capture)
+
+
+class CameraDiagnosticTests(unittest.TestCase):
+    @patch("raspberry.camera.cv2.VideoCapture", return_value=DummyCapture(False))
+    def test_failure_reasons_are_reported_per_backend(self, _mock_video_capture) -> None:
+        manager = CameraManager(backend="auto")
+
+        self.assertFalse(manager.is_ready())
+        self.assertIsNone(manager.active_backend)
+        # picamera2 não existe no ambiente de teste: a dica de instalação precisa aparecer.
+        self.assertIn("picamera2", manager._backend_errors)
+        self.assertIn("system-site-packages", manager._backend_errors["picamera2"])
+        self.assertIn("opencv", manager._backend_errors)
+
+    @patch("raspberry.camera.opencv_has_gstreamer", return_value=False)
+    @patch("raspberry.camera.cv2.VideoCapture", return_value=DummyCapture(False))
+    def test_gstreamer_reason_mentions_missing_support(self, _mock_capture, _mock_support) -> None:
+        manager = CameraManager(backend="rpicam")
+
+        self.assertIn("GStreamer", manager._backend_errors["rpicam"])
+
+    @patch("raspberry.camera.cv2.VideoCapture", return_value=DummyCapture(False))
+    def test_reconnect_delay_backs_off_after_repeated_failures(self, _mock_video_capture) -> None:
+        from raspberry.config import CAMERA_MAX_RECONNECT_DELAY, CAMERA_RECONNECT_DELAY
+
+        manager = CameraManager(backend="opencv")
+        first = manager._reconnect_delay()
+
+        for _ in range(5):
+            manager._initialize()
+
+        self.assertGreaterEqual(first, CAMERA_RECONNECT_DELAY)
+        self.assertGreater(manager._reconnect_delay(), first)
+        self.assertLessEqual(manager._reconnect_delay(), CAMERA_MAX_RECONNECT_DELAY)
+
+    @patch("raspberry.camera.cv2.VideoCapture")
+    def test_describe_reports_active_backend(self, mock_video_capture) -> None:
+        mock_video_capture.return_value = DummyCapture(True)
+        self.assertIn("opencv", CameraManager(backend="opencv").describe())
+
+        mock_video_capture.return_value = DummyCapture(False)
+        self.assertIn("nenhuma", CameraManager(backend="opencv").describe())
 
 
 if __name__ == "__main__":
