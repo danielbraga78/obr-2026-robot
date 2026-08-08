@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
-// Sketch independente para testar rodas omnidirecionais no Arduino Mega.
-// Objetivo: validar o funcionamento dos 4 motores sem depender do Raspberry.
+// Sketch independente para testar os 4 motores individualmente e de forma aleatória.
+// Funciona sem depender do Raspberry Pi ou do firmware principal.
 
 constexpr uint8_t kMotor1EnablePin = 2;
 constexpr uint8_t kMotor1In1Pin = 22;
@@ -19,9 +19,9 @@ constexpr uint8_t kMotor4EnablePin = 5;
 constexpr uint8_t kMotor4In1Pin = 28;
 constexpr uint8_t kMotor4In2Pin = 29;
 
-constexpr int kMaxMotorSpeed = 200;
-constexpr int kTestDurationMs = 2000;
-constexpr int kMotorAllSpeed = 150;
+constexpr int kMaxMotorSpeed = 180;
+constexpr unsigned long kRunDurationMs = 3200;
+constexpr unsigned long kPauseDurationMs = 800;
 
 struct MotorChannel {
   uint8_t enablePin;
@@ -67,16 +67,23 @@ void setMotorSpeed(uint8_t motorIndex, int speed) {
   analogWrite(g_channels[motorIndex].enablePin, pwmValue);
 }
 
-void runAllMotorsTogether(int speed) {
-  Serial.println();
-  Serial.print("[TEST] Todos os motores girando com velocidade ");
-  Serial.println(speed);
-  for (uint8_t i = 0; i < 4; ++i) {
-    setMotorSpeed(i, speed);
-  }
-  delay(kTestDurationMs);
+void runSingleMotorTest(uint8_t motorIndex) {
+  const int direction = random(0, 2) == 0 ? -1 : 1;
+  const int speed = random(120, kMaxMotorSpeed + 1);
+  const int finalSpeed = speed * direction;
+
+  Serial.print("[TEST] Motor ");
+  Serial.print(motorIndex + 1);
+  Serial.print(" | direcao ");
+  Serial.print(direction > 0 ? "frente" : "tras");
+  Serial.print(" | velocidade ");
+  Serial.println(abs(finalSpeed));
+
   stopAllMotors();
-  delay(1000);
+  setMotorSpeed(motorIndex, finalSpeed);
+  delay(kRunDurationMs);
+  stopAllMotors();
+  delay(kPauseDurationMs);
 }
 
 void setup() {
@@ -85,15 +92,14 @@ void setup() {
     ;
   }
 
+  randomSeed(analogRead(A0));
   initMotors();
-  Serial.println("Teste de motores iniciado.");
-  Serial.println("Todos os motores giram juntos por 2 segundos e param por 1 segundo.");
+
+  Serial.println("Teste individual dos motores iniciado.");
+  Serial.println("Cada ciclo ativa um motor aleatorio por 1.2s e pausa por 0.8s.");
 }
 
 void loop() {
-  runAllMotorsTogether(kMotorAllSpeed);
-  runAllMotorsTogether(-kMotorAllSpeed);
-
-  Serial.println("Ciclo completo finalizado. Reiniciando...\n");
-  delay(1000);
+  const uint8_t motorIndex = static_cast<uint8_t>(random(0, 4));
+  runSingleMotorTest(motorIndex);
 }
