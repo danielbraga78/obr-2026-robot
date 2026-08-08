@@ -1,0 +1,6 @@
+# Ambiente de desenvolvimento fora do Raspberry Pi (desktop/CI).
+# NÃO use este arquivo no Raspberry Pi: o numpy do pip quebra o picamera2.
+# Lá, use 'sudo apt install -y python3-picamera2 python3-opencv python3-numpy'.
+-r requirements.txt
+numpy>=1.24.0
+opencv-python>=4.6.0

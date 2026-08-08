@@ -1,12 +1,20 @@
-# opencv-python (com GUI) é obrigatório para o preview na tela do Raspberry Pi.
-# O pacote opencv-python-headless NÃO tem janelas: imshow falha e o preview se desativa.
-opencv-python>=4.10.0
-numpy>=1.26.0
+# Dependências puras, seguras em qualquer ambiente.
 pyserial>=3.5
 PyYAML>=6.0
 pytest>=8.0
 
-# Câmera CSI (Camera Module): picamera2 não é instalável de forma confiável pelo pip.
-# Instale pelo sistema e crie o venv enxergando os pacotes do sistema:
-#   sudo apt install -y python3-picamera2
-#   python3 -m venv --system-site-packages .venv
+# ATENÇÃO: numpy e opencv NÃO entram aqui de propósito.
+#
+# No Raspberry Pi o venv precisa de --system-site-packages para enxergar o
+# picamera2, e nesse modo os pacotes do pip têm prioridade sobre os do sistema.
+# Instalar numpy pelo pip mascara o numpy do sistema e quebra a ABI das
+# bibliotecas compiladas contra ele (simplejpeg, libcamera), com o erro
+# "ValueError: numpy.dtype size changed" ao importar picamera2.
+#
+# No Raspberry Pi, instale numpy e opencv pelo sistema:
+#   sudo apt install -y python3-picamera2 python3-opencv python3-numpy
+# O python3-opencv do apt ainda tem a vantagem de vir com GUI e GStreamer,
+# que os wheels do pip não têm.
+#
+# Fora do Raspberry Pi (desenvolvimento, testes em desktop):
+#   pip install -r requirements-dev.txt

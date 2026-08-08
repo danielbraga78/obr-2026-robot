@@ -37,6 +37,11 @@ _PICAMERA2_HINT = (
     "instale com 'sudo apt install -y python3-picamera2' e recrie o venv com "
     "'python3 -m venv --system-site-packages .venv' (o picamera2 vem do sistema, não do pip)"
 )
+_PICAMERA2_SHADOW_HINT = (
+    "o pacote existe mas o import quebrou. Num venv com --system-site-packages, "
+    "instalar numpy/opencv pelo pip mascara os do sistema e quebra a ABI do picamera2: "
+    "'pip uninstall -y numpy opencv-python' e use os do sistema (python3-numpy, python3-opencv)"
+)
 _GSTREAMER_HINT = "este build do OpenCV não tem GStreamer (wheels do pip nunca têm)"
 
 
@@ -162,10 +167,18 @@ class CameraManager(CameraInterface):
         """Backend nativo da câmera CSI no Raspberry Pi OS Bookworm."""
         try:
             from picamera2 import Picamera2
-        except ImportError as exc:
-            return self._fail("picamera2", f"módulo não disponível neste Python ({exc}); {_PICAMERA2_HINT}")
+        except ModuleNotFoundError as exc:
+            # O pacote realmente não está no sys.path deste Python.
+            missing = getattr(exc, "name", "") or ""
+            if missing.split(".")[0] in {"picamera2", "libcamera"}:
+                return self._fail("picamera2", f"módulo '{missing}' não encontrado; {_PICAMERA2_HINT}")
+            # Uma dependência do picamera2 é que está faltando, não ele.
+            return self._fail("picamera2", f"dependência '{missing}' ausente ({exc}); {_PICAMERA2_SHADOW_HINT}")
         except Exception as exc:
-            return self._fail("picamera2", f"falha ao importar ({exc})")
+            # Instalado, mas o import quebrou. Costuma ser ABI de numpy/opencv trocada,
+            # e nem sempre chega como ImportError: o simplejpeg levanta ValueError
+            # ("numpy.dtype size changed") quando o numpy do pip mascara o do sistema.
+            return self._fail("picamera2", f"import falhou ({type(exc).__name__}: {exc}); {_PICAMERA2_SHADOW_HINT}")
 
         picam = None
         try:

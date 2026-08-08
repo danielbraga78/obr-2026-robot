@@ -342,8 +342,11 @@ Converte a decisão do comportamento em comando de movimento ou ação para o Ar
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3 python3-venv python3-pip python3-dev
-sudo apt install -y libopencv-dev python3-opencv
+sudo apt install -y python3-picamera2 python3-opencv python3-numpy
 ```
+
+O `numpy` e o `opencv` vêm do sistema, **não do pip** — veja o passo 2. O
+`python3-opencv` do apt também traz GUI e GStreamer, que os wheels do pip não têm.
 
 ### 2. Criar ambiente virtual
 
@@ -355,6 +358,19 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+> **Não instale `numpy` nem `opencv-python` pelo pip neste venv.** Com
+> `--system-site-packages`, os pacotes do pip têm prioridade sobre os do sistema.
+> Um numpy do pip mascara o do sistema e quebra a ABI das bibliotecas compiladas
+> contra ele, e o `import picamera2` falha com
+> `ValueError: numpy.dtype size changed`. Se isso acontecer:
+>
+> ```bash
+> pip uninstall -y numpy opencv-python opencv-python-headless
+> python -c "import picamera2, cv2, numpy; print('ok', numpy.__version__, cv2.__version__)"
+> ```
+>
+> Para desenvolver fora do Raspberry Pi, use `pip install -r requirements-dev.txt`.
 
 ### 3. Configurar a câmera
 
