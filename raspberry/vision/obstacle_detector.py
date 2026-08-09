@@ -126,6 +126,14 @@ class VisionBasedObstacleDetector(ObstacleDetector):
                 confidence=0.0,
                 detection_method="vision"
             )
+
+    def detect_from_hsv(self, hsv: np.ndarray, frame: Optional[np.ndarray] = None, source_frame: Optional[np.ndarray] = None) -> ObstacleDetectionResult:
+        """Compatível com o pipeline visual, usando o frame atual se disponível."""
+        input_frame = frame if frame is not None else source_frame
+        if input_frame is None:
+            return ObstacleDetectionResult(obstacle_detected=False, confidence=0.0, detection_method="vision")
+        self.set_frame(input_frame)
+        return self.detect()
     
     def _analyze_frame(self, frame: np.ndarray) -> ObstacleAnalysis:
         """
@@ -168,9 +176,11 @@ class VisionBasedObstacleDetector(ObstacleDetector):
         
         # Analisar contornos
         obstacles = []
+        roi_area = float(roi_v.size)
         for contour in contours:
             area = cv2.contourArea(contour)
-            if area >= self.min_obstacle_area:
+            area_ratio = area / roi_area if roi_area else 0.0
+            if area >= self.min_obstacle_area and area_ratio < 0.5:
                 x, y, w, h = cv2.boundingRect(contour)
                 obstacles.append({
                     'area': area,

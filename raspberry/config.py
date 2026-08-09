@@ -1,5 +1,8 @@
+from __future__ import annotations
+
+import time
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Dict, Optional
 
 # ============================================================================
 # Configuração Serial (Comunicação com Arduino)
@@ -160,3 +163,72 @@ class RobotContext:
     camera_ready: bool = False
     serial_ready: bool = False
     last_detections: dict = field(default_factory=dict)
+    _temporal_flags: Dict[str, float] = field(default_factory=dict)
+    _event_timestamps: Dict[str, float] = field(default_factory=dict)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in {"obstacle_detected", "rescue_detected", "safe_zone_detected", "ball_detected"} and isinstance(value, bool):
+            temporal_flags = getattr(self, "_temporal_flags", None)
+            if temporal_flags is None:
+                object.__setattr__(self, name, value)
+                return
+            if value:
+                temporal_flags[name] = time.monotonic()
+            else:
+                temporal_flags.pop(name, None)
+        elif name == "last_event":
+            event_timestamps = getattr(self, "_event_timestamps", None)
+            if event_timestamps is None:
+                object.__setattr__(self, name, value)
+                return
+            if value is None:
+                event_timestamps.pop("last_event", None)
+            else:
+                event_timestamps["last_event"] = time.monotonic()
+        object.__setattr__(self, name, value)
+
+    def set_temporal_flag(self, name: str, value: bool, *, now: Optional[float] = None) -> None:
+        current_time = time.monotonic() if now is None else now
+        if value:
+            self._temporal_flags[name] = current_time
+        else:
+            self._temporal_flags.pop(name, None)
+        object.__setattr__(self, name, value)
+
+    def has_recent_temporal_flag(self, name: str, ttl: float, *, now: Optional[float] = None) -> bool:
+        current_time = time.monotonic() if now is None else now
+        timestamp = self._temporal_flags.get(name)
+        if timestamp is None:
+            return False
+        return (current_time - timestamp) <= ttl
+
+    def set_last_event(self, event: Optional[str], *, now: Optional[float] = None) -> None:
+        current_time = time.monotonic() if now is None else now
+        object.__setattr__(self, "last_event", event)
+        if event is None:
+            self._event_timestamps.pop("last_event", None)
+        else:
+            self._event_timestamps["last_event"] = current_time
+
+    def has_recent_event(self, event: str, ttl: float, *, now: Optional[float] = None) -> bool:
+        current_time = time.monotonic() if now is None else now
+        timestamp = self._event_timestamps.get("last_event")
+        if timestamp is None:
+            return False
+        return self.last_event == event and (current_time - timestamp) <= ttl
+
+    def expire_temporal_signals(self, *, now: Optional[float] = None) -> None:
+        current_time = time.monotonic() if now is None else now
+        for name, timestamp in list(self._temporal_flags.items()):
+            if (current_time - timestamp) > 0.25:
+                self._temporal_flags.pop(name, None)
+                setattr(self, name, False)
+
+        if self.last_event is not None:
+            timestamp = self._event_timestamps.get("last_event")
+            if timestamp is not None and (current_time - timestamp) > 1.0:
+                self._event_timestamps.pop("last_event", None)
+                self.last_event = None
+
+    def refresh_temporal_state(self, *, now: Optional[float] = None) -> None:
+        self.expire_temporal_signals(now=now)

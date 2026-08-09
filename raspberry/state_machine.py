@@ -22,14 +22,20 @@ class RobotStateMachine:
         if state_name in self.states:
             self.current_state = state_name
 
-    def run_once(self, context, frame, detectors) -> StateResult:
+    def _apply_transition(self, result_next_state: str | None, strategy_next_state: str | None) -> None:
+        if strategy_next_state is not None and strategy_next_state in self.states:
+            self.transition_to(strategy_next_state)
+            return
+        if result_next_state is not None and result_next_state in self.states:
+            self.transition_to(result_next_state)
+
+    def run_once(self, context, frame, detectors, strategy_next_state: str | None = None) -> StateResult:
         if self.current_state not in self.states:
             # Fallback para BOOT se estado é inválido
             self.current_state = STATE_SEQUENCE[0]
             return StateResult(command="STOP", next_state=STATE_SEQUENCE[0], log_message="Estado inválido, resetando para BOOT")
-        
+
         state = self.states[self.current_state]
         result = state.execute(context, frame, detectors)
-        if result.next_state and result.next_state in self.states:
-            self.transition_to(result.next_state)
+        self._apply_transition(result.next_state, strategy_next_state)
         return result

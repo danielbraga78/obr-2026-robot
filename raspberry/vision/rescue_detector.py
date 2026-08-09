@@ -21,14 +21,16 @@ class RescueDetector:
 
     def detect_from_hsv(self, hsv: np.ndarray, frame: np.ndarray | None = None, source_frame: np.ndarray | None = None) -> bool:
         mask = cv2.inRange(hsv, np.array(RESCUE_MIN), np.array(RESCUE_MAX))
-        detected = float(mask.sum()) > 10000
-        
+        non_zero_pixels = int(cv2.countNonZero(mask))
+        area_ratio = non_zero_pixels / float(mask.size) if mask.size else 0.0
+        detected = non_zero_pixels >= max(16, int(mask.size * 0.001)) and area_ratio >= 0.001
+
         # Debouncing simples: requer N frames positivos para confirmar
         if detected:
             self._positive_count += 1
         else:
             self._positive_count = 0
-        
+
         return self._positive_count >= self.debounce_frames
     
     def reset(self) -> None:

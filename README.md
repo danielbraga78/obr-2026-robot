@@ -352,25 +352,27 @@ O `numpy` e o `opencv` vêm do sistema, **não do pip** — veja o passo 2. O
 
 ```bash
 cd /home/pi/Desktop/novo_projeto
-# --system-site-packages é necessário para enxergar o picamera2 (câmera CSI)
-python3 -m venv --system-site-packages .venv
+./scripts/setup_dev_env.sh
 source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
 ```
 
-> **Não instale `numpy` nem `opencv-python` pelo pip neste venv.** Com
-> `--system-site-packages`, os pacotes do pip têm prioridade sobre os do sistema.
-> Um numpy do pip mascara o do sistema e quebra a ABI das bibliotecas compiladas
-> contra ele, e o `import picamera2` falha com
-> `ValueError: numpy.dtype size changed`. Se isso acontecer:
->
-> ```bash
-> pip uninstall -y numpy opencv-python opencv-python-headless
-> python -c "import picamera2, cv2, numpy; print('ok', numpy.__version__, cv2.__version__)"
-> ```
->
-> Para desenvolver fora do Raspberry Pi, use `pip install -r requirements-dev.txt`.
+O script cria um ambiente virtual local e instala as dependências de desenvolvimento
+com o mesmo fluxo em qualquer máquina desktop/CI:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+```
+
+> **Não instale `numpy` nem `opencv-python` pelo pip no Raspberry Pi.**
+> No Raspberry Pi, prefira o sistema (`python3-picamera2`, `python3-opencv`, `python3-numpy`).
+> Para desenvolvimento em desktop/CI, o script usa `requirements-dev.txt` e garante
+> que `cv2` e `yaml` estejam disponíveis sem depender de configurações manuais.
+
+Para rodar a suíte completa:
+
+```bash
+python3 -m unittest discover -s tests -q
+```
 
 ### 3. Configurar a câmera
 
@@ -524,6 +526,7 @@ O Arduino responde com confirmação imediata.
 | `GRAB` | fecha a garra | `GRAB\n` |
 | `RELEASE` | abre a garra | `RELEASE\n` |
 | `PING` | teste de comunicação | `PING\n` |
+| `HEARTBEAT` | keepalive de comunicação; não comanda movimento | `HEARTBEAT\n` |
 | `SERVO,angle` | ajusta ângulo servo (20-110°) | `SERVO,90\n` |
 
 ### Respostas do Arduino
@@ -540,9 +543,11 @@ O Arduino responde com confirmação imediata.
 
 ### Heartbeat e watchdog
 
-- O Raspberry envia `HEARTBEAT` periodicamente.
-- O Arduino monitora a comunicação e, em caso de falha, ativa o watchdog.
-- A serial é reconectada automaticamente sem encerrar a aplicação.
+- O Raspberry envia `HEARTBEAT` periodicamente como keepalive da ligação serial.
+- O Arduino interpreta `HEARTBEAT` como sinal de vida e reseta o watchdog local sem executar movimento.
+- Se o Arduino não receber comandos válidos nem `HEARTBEAT` por mais de 1 segundo, ele para os motores e envia `WATCHDOG`.
+- O Raspberry trata `WATCHDOG` como falha explícita de comunicação e entra em estado seguro enviando `STOP`.
+- A serial é reconectada automaticamente sem encerrar a aplicação; após o retorno do tráfego, o watchdog é limpo e o sistema volta ao fluxo normal.
 
 ## Máquina de Estados
 

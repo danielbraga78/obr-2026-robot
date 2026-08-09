@@ -8,7 +8,10 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-import serial
+try:
+    import serial  # type: ignore
+except ImportError:  # pragma: no cover - ambiente de teste sem pyserial
+    serial = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,7 @@ class SerialTransport:
         self._active_port: Optional[str] = None
         self._active_mode: Optional[str] = None
         self._watchdog_warned = False
+        self._watchdog_triggered = False
         self._lines_received = 0
 
     def connect(self) -> None:
@@ -85,10 +89,9 @@ class SerialTransport:
 
     def send_heartbeat(self) -> None:
         now = time.monotonic()
-        if now - self._last_heartbeat_sent < self.heartbeat_interval:
-            return
-        self.send_command("HEARTBEAT")
-        self._last_heartbeat_sent = now
+        if self._last_heartbeat_sent == 0.0 or now - self._last_heartbeat_sent >= self.heartbeat_interval:
+            self.send_command("HEARTBEAT")
+            self._last_heartbeat_sent = now
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
@@ -152,6 +155,8 @@ class SerialTransport:
         try:
             if not os.path.exists(port):
                 return False
+            if serial is None:
+                raise RuntimeError("pyserial não está instalado")
             self.serial = serial.Serial(port, self.baudrate, timeout=self.timeout)
             time.sleep(1.0)
             self._set_connected(True)
@@ -215,11 +220,12 @@ class SerialTransport:
                     self._event_queue.put_nowait(line)
 
     def _check_watchdog(self) -> None:
-        """Avisa sobre silêncio prolongado do Arduino, sem derrubar a porta.
+        """Emite WATCHDOG quando o Arduino ficar em silêncio por muito tempo.
 
-        Fechar e reabrir /dev/ttyACM* alterna o DTR e reinicia a placa, que fica
-        ~2 s no bootloader e volta a ficar em silêncio: o próprio watchdog criava
-        o silêncio que o disparava. Porta de fato morta é detectada na escrita.
+        O protocolo define HEARTBEAT como keepalive do Raspberry para o Arduino
+        e WATCHDOG como evento explícito de falha de comunicação. Quando o
+        watchdog dispara, o transporte envia STOP para garantir parada segura
+        e registra o evento para a aplicação.
         """
         if not self._get_connected():
             return
@@ -228,12 +234,23 @@ class SerialTransport:
         silent_for = time.monotonic() - self._last_message_received
         if silent_for <= self.heartbeat_timeout:
             self._watchdog_warned = False
+            self._watchdog_triggered = False
             return
         if not self._watchdog_warned:
             self._watchdog_warned = True
+            self._watchdog_triggered = True
+            self.send_command("STOP")
+            self._push_event("WATCHDOG")
             logger.warning(
                 "Watchdog serial: %s sem resposta há %.1f s (conexão mantida; %d linhas recebidas até agora)",
                 self._active_port,
                 silent_for,
                 self._lines_received,
             )
+
+    def _push_event(self, message: str) -> None:
+        try:
+            self._event_queue.put_nowait(message)
+        except queue.Full:
+            self._event_queue.get_nowait()
+            self._event_queue.put_nowait(message)

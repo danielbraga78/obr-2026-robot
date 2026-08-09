@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import Optional
 
@@ -23,7 +24,7 @@ class BallDetector:
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         return self.detect_from_hsv(hsv, frame=frame)
 
-    def detect_from_hsv(self, hsv: np.ndarray, frame: Optional[np.ndarray] = None, source_frame: Optional[np.ndarray] = None) -> Optional[Ball]:
+    def detect_from_hsv(self, hsv: np.ndarray, frame: Optional[np.ndarray] = None, source_frame: Optional[np.ndarray] = None, roi: Optional[tuple[float, float, float, float]] = None) -> Optional[Ball]:
         if frame is None:
             frame = source_frame
         if frame is None:
@@ -35,14 +36,17 @@ class BallDetector:
         if not contours:
             return None
         largest = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(largest) < 100:
+        area = cv2.contourArea(largest)
+        if area < 50:
             return None
         moments = cv2.moments(largest)
         if moments["m00"] == 0:
             return None
+        height, width = frame.shape[:2]
         x = moments["m10"] / moments["m00"]
         y = moments["m01"] / moments["m00"]
-        radius = max(5.0, np.sqrt(cv2.contourArea(largest) / np.pi))
-        distance = max(5.0, 100.0 / (radius + 1.0))
-        confidence = min(1.0, cv2.contourArea(largest) / 5000.0)
+        radius = max(4.0, math.sqrt(area / math.pi))
+        radius_ratio = radius / max(width, height)
+        distance = max(5.0, min(100.0, 1.0 / max(radius_ratio, 0.01)))
+        confidence = min(1.0, area / max(1.0, 0.01 * width * height))
         return Ball(x=x, y=y, radius=radius, distance=distance, confidence=confidence)

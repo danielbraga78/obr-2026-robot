@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from competition.behavior_manager import BehaviorManager
 from competition.config import load_config
@@ -24,7 +25,8 @@ class CompetitionArchitectureTests(unittest.TestCase):
         self.assertEqual(cmd, "MOVE,20,0,0")
 
     def test_config_loader_reads_yaml(self) -> None:
-        config = load_config("/home/leosouza/Desktop/trabalho/2026/novo_projeto/competition/config/default.yaml")
+        config_path = Path(__file__).resolve().parents[1] / "competition" / "config" / "default.yaml"
+        config = load_config(str(config_path))
         self.assertIn("competition", config)
         self.assertEqual(config["competition"]["mission"], "rescue")
 

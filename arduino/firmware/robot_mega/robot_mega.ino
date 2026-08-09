@@ -49,6 +49,7 @@ struct MotorChannel {
 MotionCommand g_motionCommand = {0.0f, 0.0f, 0.0f, false};
 unsigned long g_lastCommandMs = 0;
 bool g_safetyStopActive = false;
+bool g_watchdogTriggered = false;
 
 // Sensor ultrassônico
 bool g_ultrasonicEnabled = false;
@@ -99,28 +100,33 @@ void stopAllMotors() {
 }
 
 void applyOmniMotion(float vx, float vy, float wz) {
-  const float frontLeft = vx + vy + wz;
-  const float frontRight = -vx + vy + wz;
-  const float rearLeft = -vx - vy + wz;
-  const float rearRight = vx - vy + wz;
+  // Mapeamento físico do robô:
+  // - Ponte H A: M1 (esquerdo frente) + M3 (esquerdo trás)
+  // - Ponte H B: M2 (direito frente) + M4 (direito trás)
+  // A cinemática é calculada motor a motor para suportar translação lateral,
+  // diagonal e rotação sem depender de frente/trás.
+  const float motor1 = vx + vy + wz;
+  const float motor2 = vx - vy - wz;
+  const float motor3 = vx - vy + wz;
+  const float motor4 = vx + vy - wz;
 
-  const float maxAbs = max(max(abs(frontLeft), abs(frontRight)), max(abs(rearLeft), abs(rearRight)));
+  const float maxAbs = max(max(abs(motor1), abs(motor2)), max(abs(motor3), abs(motor4)));
   const float scale = (maxAbs > kMaxMotorSpeed) ? (kMaxMotorSpeed / maxAbs) : 1.0f;
 
-  const int fl = static_cast<int>(frontLeft * scale);
-  const int fr = static_cast<int>(frontRight * scale);
-  const int rl = static_cast<int>(rearLeft * scale);
-  const int rr = static_cast<int>(rearRight * scale);
+  const int m1 = static_cast<int>(motor1 * scale);
+  const int m2 = static_cast<int>(motor2 * scale);
+  const int m3 = static_cast<int>(motor3 * scale);
+  const int m4 = static_cast<int>(motor4 * scale);
 
   if (g_safetyStopActive) {
     stopAllMotors();
     return;
   }
 
-  setMotorSpeed(0, fl);
-  setMotorSpeed(1, fr);
-  setMotorSpeed(2, rl);
-  setMotorSpeed(3, rr);
+  setMotorSpeed(0, m1);
+  setMotorSpeed(1, m2);
+  setMotorSpeed(2, m3);
+  setMotorSpeed(3, m4);
 }
 
 void stopMotion() {
@@ -150,6 +156,7 @@ void setGripperAngle(int angle) {
 
 void resetWatchdog() {
   g_lastCommandMs = millis();
+  g_watchdogTriggered = false;
 }
 
 void initUltrasonic() {
@@ -200,10 +207,18 @@ void handleUltrasonic() {
 }
 
 void handleWatchdog() {
-  if (millis() - g_lastCommandMs > kWatchdogTimeoutMs) {
-    stopMotion();
-    Serial.println("WATCHDOG");
-    g_lastCommandMs = millis();
+  const unsigned long now = millis();
+  if (now - g_lastCommandMs > kWatchdogTimeoutMs) {
+    if (!g_watchdogTriggered) {
+      stopMotion();
+      Serial.println("WATCHDOG");
+      g_watchdogTriggered = true;
+    }
+    return;
+  }
+
+  if (g_watchdogTriggered) {
+    g_watchdogTriggered = false;
   }
 }
 
@@ -266,6 +281,12 @@ void handleCommand(const String& rawCommand) {
   if (command == "PING") {
     resetWatchdog();
     Serial.println("PONG");
+    return;
+  }
+
+  if (command == "HEARTBEAT") {
+    resetWatchdog();
+    Serial.println("OK");
     return;
   }
 

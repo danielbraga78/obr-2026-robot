@@ -26,7 +26,7 @@ O sketch em [arduino/robot_mega.ino](arduino/robot_mega.ino) usa os seguintes pi
 - Servo da garra: pino D44
 - Sensor ultrassônico: TRIG em A2, ECHO em A3
 
-> O firmware atual não usa um pino STBY dedicado; o controle é feito pelos pinos de enable e direção. Não existe um pino do Mega reservado para STBY neste firmware.
+> O firmware atual não usa um pino STBY dedicado; o controle é feito pelos pinos de enable e direção. Não existe um pino do Mega reservado para STBY neste firmware, e a documentação abaixo segue esse mapeamento real.
 
 ### Resumo exato das conexões no Arduino Mega
 
@@ -620,6 +620,14 @@ CAMERA_BACKEND_PREFERENCE = ("picamera2", "libcamera", "rpicam", "opencv")
 ---
 
 ## Comunicação Serial
+
+### Protocolo de keepalive e watchdog
+
+- O Raspberry envia `HEARTBEAT` periodicamente como keepalive da ligação serial.
+- O Arduino interpreta `HEARTBEAT` como sinal de vida e reseta o watchdog local sem executar movimento.
+- Se não houver comandos válidos nem `HEARTBEAT` por mais de 1 segundo, o firmware para os motores e envia `WATCHDOG`.
+- O Raspberry trata `WATCHDOG` como falha explícita de comunicação e entra em estado seguro enviando `STOP`.
+- Após a recuperação do tráfego, o watchdog é limpo e o sistema volta ao fluxo normal.
 
 ### Modo USB (Padrão)
 

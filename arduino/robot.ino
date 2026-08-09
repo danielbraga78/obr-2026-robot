@@ -2,19 +2,22 @@
 #include <Servo.h>
 
 // Sketch único para o robô da OBR.
-// 
+// Este arquivo é a variante para Arduino Uno/Nano.
+//
 // Este firmware assume uma base omnidirecional de 4 rodas com 4 motores independentes,
 // operando com a mistura cinemática clássica de holonômica/X-drive:
 //   FL = vx + vy + wz
 //   FR = -vx + vy + wz
 //   RL = -vx - vy + wz
 //   RR = vx - vy + wz
-// 
+//
 // Se a geometria física do robô for diferente, este mapeamento deve ser ajustado.
 //
 // NOTA: Este firmware funciona com câmera USB/CSI como sensor de percepção.
 // Obstáculos são detectados pelo Raspberry Pi via visão computacional.
 // Sensores adicionais (ultrassônico, ToF, LiDAR) podem ser integrados no futuro.
+//
+// A variante Uno/Nano usa PWM nos pinos 3, 6, 9 e 10 para os sinais de enable dos motores.
 
 constexpr uint8_t kMotor1EnablePin = 3;
 constexpr uint8_t kMotor1In1Pin = 4;
@@ -25,18 +28,18 @@ constexpr uint8_t kMotor2In1Pin = 7;
 constexpr uint8_t kMotor2In2Pin = 8;
 
 constexpr uint8_t kMotor3EnablePin = 9;
-constexpr uint8_t kMotor3In1Pin = 10;
+constexpr uint8_t kMotor3In1Pin = A2;
 constexpr uint8_t kMotor3In2Pin = 11;
 
-constexpr uint8_t kMotor4EnablePin = 13;
+constexpr uint8_t kMotor4EnablePin = 10;
 constexpr uint8_t kMotor4In1Pin = A0;
 constexpr uint8_t kMotor4In2Pin = A1;
 
 constexpr uint8_t kServoPin = 2;
 
 // Sensor ultrassônico HC-SR04 (opcional)
-constexpr uint8_t kUltrasonicTrigPin = A2;
-constexpr uint8_t kUltrasonicEchoPin = A3;
+constexpr uint8_t kUltrasonicTrigPin = A4;
+constexpr uint8_t kUltrasonicEchoPin = A5;
 constexpr unsigned long kUltrasonicTimeoutUs = 23000;  // Timeout para ~4m
 
 constexpr unsigned long kWatchdogTimeoutMs = 1000;
@@ -62,6 +65,7 @@ struct MotorChannel {
 MotionCommand g_motionCommand = {0.0f, 0.0f, 0.0f, false};
 unsigned long g_lastCommandMs = 0;
 bool g_safetyStopActive = false;
+bool g_watchdogTriggered = false;
 
 // Sensor ultrassônico
 bool g_ultrasonicEnabled = false;
@@ -112,28 +116,33 @@ void stopAllMotors() {
 }
 
 void applyOmniMotion(float vx, float vy, float wz) {
-  const float frontLeft = vx + vy + wz;
-  const float frontRight = -vx + vy + wz;
-  const float rearLeft = -vx - vy + wz;
-  const float rearRight = vx - vy + wz;
+  // Mapeamento físico do robô:
+  // - Ponte H A: M1 (esquerdo frente) + M3 (esquerdo trás)
+  // - Ponte H B: M2 (direito frente) + M4 (direito trás)
+  // A cinemática é calculada motor a motor para suportar translação lateral,
+  // diagonal e rotação sem depender de frente/trás.
+  const float motor1 = vx + vy + wz;
+  const float motor2 = vx - vy - wz;
+  const float motor3 = vx - vy + wz;
+  const float motor4 = vx + vy - wz;
 
-  const float maxAbs = max(max(abs(frontLeft), abs(frontRight)), max(abs(rearLeft), abs(rearRight)));
+  const float maxAbs = max(max(abs(motor1), abs(motor2)), max(abs(motor3), abs(motor4)));
   const float scale = (maxAbs > kMaxMotorSpeed) ? (kMaxMotorSpeed / maxAbs) : 1.0f;
 
-  const int fl = static_cast<int>(frontLeft * scale);
-  const int fr = static_cast<int>(frontRight * scale);
-  const int rl = static_cast<int>(rearLeft * scale);
-  const int rr = static_cast<int>(rearRight * scale);
+  const int m1 = static_cast<int>(motor1 * scale);
+  const int m2 = static_cast<int>(motor2 * scale);
+  const int m3 = static_cast<int>(motor3 * scale);
+  const int m4 = static_cast<int>(motor4 * scale);
 
   if (g_safetyStopActive) {
     stopAllMotors();
     return;
   }
 
-  setMotorSpeed(0, fl);
-  setMotorSpeed(1, fr);
-  setMotorSpeed(2, rl);
-  setMotorSpeed(3, rr);
+  setMotorSpeed(0, m1);
+  setMotorSpeed(1, m2);
+  setMotorSpeed(2, m3);
+  setMotorSpeed(3, m4);
 }
 
 void stopMotion() {
@@ -163,6 +172,7 @@ void setGripperAngle(int angle) {
 
 void resetWatchdog() {
   g_lastCommandMs = millis();
+  g_watchdogTriggered = false;
 }
 
 void initUltrasonic() {
@@ -210,12 +220,21 @@ void handleUltrasonic() {
       Serial.println(distanceCm, 1);
     }
   }
+}
 
 void handleWatchdog() {
-  if (millis() - g_lastCommandMs > kWatchdogTimeoutMs) {
-    stopMotion();
-    Serial.println("WATCHDOG");
-    g_lastCommandMs = millis();
+  const unsigned long now = millis();
+  if (now - g_lastCommandMs > kWatchdogTimeoutMs) {
+    if (!g_watchdogTriggered) {
+      stopMotion();
+      Serial.println("WATCHDOG");
+      g_watchdogTriggered = true;
+    }
+    return;
+  }
+
+  if (g_watchdogTriggered) {
+    g_watchdogTriggered = false;
   }
 }
 
@@ -278,6 +297,12 @@ void handleCommand(const String& rawCommand) {
   if (command == "PING") {
     resetWatchdog();
     Serial.println("PONG");
+    return;
+  }
+
+  if (command == "HEARTBEAT") {
+    resetWatchdog();
+    Serial.println("OK");
     return;
   }
 

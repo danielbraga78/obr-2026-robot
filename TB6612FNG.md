@@ -114,7 +114,7 @@ O TB6612FNG possui dois canais independentes, chamados A e B. Cada canal control
 | VM | Alimentação dos motores | 2,5 V a 5,5 V | Conectar à bateria ou fonte de alimentação do motor |
 | VCC | Alimentação da lógica | 2,7 V a 5,5 V | Conectar a 5 V do Arduino ou regulador estável |
 | GND | Terra comum | 0 V | Conectar ao GND da bateria e do Arduino |
-| STBY | Habilita/desabilita o driver | 0 V ou VCC | Conectar a um pino digital do Arduino ou a 5 V |
+| STBY | Habilita/desabilita o driver | 0 V ou VCC | No firmware atual do projeto este pino não é usado; se um firmware alternativo o usar, ele deve ser conectado a um pino digital do Arduino ou mantido em HIGH para manter o driver ativo |
 | PWMA | PWM do canal A | 0 V a VCC | Conectar a um pino PWM do Arduino |
 | AIN1 | Controle de direção do canal A | 0 V a VCC | Conectar a um pino digital do Arduino |
 | AIN2 | Controle de direção do canal A | 0 V a VCC | Conectar a um pino digital do Arduino |
@@ -161,7 +161,7 @@ A conexão exata pode variar conforme o firmware. A tabela abaixo mostra uma sug
 
 ### Observação importante
 
-Os pinos mostrados acima são apenas uma sugestão. O firmware pode ser alterado para outro mapeamento conforme a montagem física do robô.
+Os pinos mostrados acima são apenas uma sugestão. O firmware atual do projeto não mapeia STBY para o robô; a habilitação acontece pelos pinos de enable e direção. Se um firmware alternativo precisar de STBY, ele pode ser conectado a um pino digital, mas isso não é necessário para o firmware em uso.
 
 ### Diagrama simplificado
 

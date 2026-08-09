@@ -43,6 +43,11 @@ Notas:
 
 ## Serial entre Mega e Raspberry
 
+- O protocolo serial usado pelo firmware é o seguinte:
+  - Raspberry envia `HEARTBEAT` periodicamente como keepalive.
+  - Arduino responde a `HEARTBEAT` sem mover o robô e reseta o watchdog local.
+  - Se não houver tráfego válido por mais de 1 segundo, o Arduino para os motores e envia `WATCHDOG`.
+  - O Raspberry interpreta `WATCHDOG` como falha explícita e entra em estado seguro com `STOP`.
 - Para comunicação TTL dedicada (sem USB), use `Serial1` do Mega:
   - TX1 = pino `18` (Mega) — conecta ao RX do Raspberry (GPIO 15) via conversor
     de nível (ou divisor de tensão)
