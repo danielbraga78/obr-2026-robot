@@ -3,21 +3,21 @@
 
 // Sketch para Arduino Mega 2560 — mapeamento de pinos sugerido
 
-constexpr uint8_t kMotor1EnablePin = 2;   // PWM (Mega)
-constexpr uint8_t kMotor1In1Pin = 22;
-constexpr uint8_t kMotor1In2Pin = 23;
+constexpr uint8_t kMotor3EnablePin = 2;   // PWM (Mega)
+constexpr uint8_t kMotor3In1Pin = 22;
+constexpr uint8_t kMotor3In2Pin = 23;
 
-constexpr uint8_t kMotor2EnablePin = 3;   // PWM (Mega)
-constexpr uint8_t kMotor2In1Pin = 24;
-constexpr uint8_t kMotor2In2Pin = 25;
+constexpr uint8_t kMotor1EnablePin = 3;   // PWM (Mega)
+constexpr uint8_t kMotor1In1Pin = 24;
+constexpr uint8_t kMotor1In2Pin = 25;
 
-constexpr uint8_t kMotor3EnablePin = 4;   // PWM (Mega)
-constexpr uint8_t kMotor3In1Pin = 26;
-constexpr uint8_t kMotor3In2Pin = 27;
+constexpr uint8_t kMotor4EnablePin = 4;   // PWM (Mega)
+constexpr uint8_t kMotor4In1Pin = 26;
+constexpr uint8_t kMotor4In2Pin = 27;
 
-constexpr uint8_t kMotor4EnablePin = 5;   // PWM (Mega)
-constexpr uint8_t kMotor4In1Pin = 28;     // A4 mapped to digital 28
-constexpr uint8_t kMotor4In2Pin = 29;     // A5 mapped to digital 29
+constexpr uint8_t kMotor2EnablePin = 5;   // PWM (Mega)
+constexpr uint8_t kMotor2In1Pin = 28;     // A4 mapped to digital 28
+constexpr uint8_t kMotor2In2Pin = 29;     // A5 mapped to digital 29
 
 constexpr uint8_t kServoPin = 44; // use a high-numbered PWM/servo pin
 
