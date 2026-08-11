@@ -4,9 +4,9 @@
 // Sketch independente para testar rodas omnidirecionais no Arduino Mega.
 // Objetivo: validar o funcionamento dos 4 motores sem depender do Raspberry.
 
-constexpr uint8_t kMotor1EnablePin = 2;
-constexpr uint8_t kMotor1In1Pin = 22;
-constexpr uint8_t kMotor1In2Pin = 23;
+constexpr uint8_t kMotor4EnablePin = 2;
+constexpr uint8_t kMotor4In1Pin = 22;
+constexpr uint8_t kMotor4In2Pin = 23;
 
 constexpr uint8_t kMotor2EnablePin = 3;
 constexpr uint8_t kMotor2In1Pin = 24;
@@ -16,9 +16,9 @@ constexpr uint8_t kMotor3EnablePin = 4;
 constexpr uint8_t kMotor3In1Pin = 26;
 constexpr uint8_t kMotor3In2Pin = 27;
 
-constexpr uint8_t kMotor4EnablePin = 5;
-constexpr uint8_t kMotor4In1Pin = 28;
-constexpr uint8_t kMotor4In2Pin = 29;
+constexpr uint8_t kMotor1EnablePin = 5;
+constexpr uint8_t kMotor1In1Pin = 28;
+constexpr uint8_t kMotor1In2Pin = 29;
 
 constexpr int kMaxMotorSpeed = 200;
 constexpr int kTestDurationMs = 2000;

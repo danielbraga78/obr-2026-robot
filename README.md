@@ -25,6 +25,8 @@ Este projeto reúne um software modular para operar um robô de competição da 
 
 **Nota:** Não há sensor ultrassônico, ToF, LiDAR ou qualquer outro sensor de distância instalado atualmente. O projeto foi completamente adaptado para funcionar apenas com visão computacional.
 
+Pinagem atual do firmware Mega: D2/D22/D23 para o Motor 4, D3/D24/D25 para o Motor 2, D4/D26/D27 para o Motor 3, D5/D28/D29 para o Motor 1, D44 para o servo e A2/A3 para o ultrassônico.
+
 O sistema é responsável por:
 
 - capturar e processar imagens da câmera;

@@ -10,7 +10,7 @@ if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from raspberry.camera import CameraManager
-from raspberry.config import CAMERA_BACKEND, OBSTACLE_CONFIDENCE_THRESHOLD, OBSTACLE_DETECTION_ENABLED, OBSTACLE_MIN_AREA, SERIAL_BAUDRATE, SERIAL_MODE, SERIAL_PORT, SERIAL_RECONNECT_DELAY, SERIAL_TIMEOUT, SENSORS_ENABLED, RobotContext
+from raspberry.config import CAMERA_BACKEND, OBSTACLE_CONFIDENCE_THRESHOLD, OBSTACLE_DETECTION_ENABLED, OBSTACLE_MIN_AREA, OBSTACLE_PROXIMITY_THRESHOLD_CM, SERIAL_BAUDRATE, SERIAL_MODE, SERIAL_PORT, SERIAL_RECONNECT_DELAY, SERIAL_TIMEOUT, SENSORS_ENABLED, RobotContext
 from raspberry.serial_manager import SerialManager
 from raspberry.preview import PreviewWindow
 from raspberry.state_machine import RobotStateMachine
@@ -40,6 +40,26 @@ logging.basicConfig(level=os.environ.get("ROBOT_LOG_LEVEL", "INFO").upper(), for
 logger = logging.getLogger(__name__)
 
 
+def update_context_from_serial_message(context, message: str) -> None:
+    """Atualiza o contexto com eventos e leituras vindas do Arduino."""
+    if message == "OBSTACLE":
+        context.set_temporal_flag("obstacle_detected", True)
+        return
+
+    if message.startswith("DIST,"):
+        try:
+            distance_cm = float(message.split(",", 1)[1])
+        except ValueError:
+            return
+
+        context.obstacle_distance = distance_cm
+        if distance_cm > 0 and distance_cm <= OBSTACLE_PROXIMITY_THRESHOLD_CM:
+            context.set_temporal_flag("obstacle_detected", True)
+        else:
+            context.set_temporal_flag("obstacle_detected", False)
+        return
+
+
 def build_vision_detectors() -> dict:
     detectors = {
         "line": LineDetector(),
@@ -60,6 +80,8 @@ class RobotApp:
         self.camera = CameraManager(backend=CAMERA_BACKEND)
         self.serial = SerialManager(mode=SERIAL_MODE, port=SERIAL_PORT, baudrate=SERIAL_BAUDRATE, timeout=SERIAL_TIMEOUT, reconnect_delay=SERIAL_RECONNECT_DELAY)
         self.serial.connect()
+        if SENSORS_ENABLED.get("ultrasonic", False):
+            self.serial.send_command("SENSOR,ULTRASONIC,ON")
         self.context = RobotContext()
         self.context.camera_ready = self.camera.is_ready()
         self.context.serial_ready = self.serial.is_connected()
@@ -266,9 +288,8 @@ class RobotApp:
     def _process_messages(self) -> None:
         messages = self.serial.read_messages()
         for message in messages:
-            if message == "OBSTACLE":
-                self.context.set_temporal_flag("obstacle_detected", True)
-            elif message == "BALL_CAPTURED":
+            update_context_from_serial_message(self.context, message)
+            if message == "BALL_CAPTURED":
                 self.context.set_last_event("BALL_CAPTURED")
             elif message == "BALL_DROPPED":
                 self.context.set_last_event("BALL_DROPPED")
@@ -276,11 +297,6 @@ class RobotApp:
                 self.context.set_last_event("WATCHDOG")
                 self.context.serial_ready = False
                 self.serial.send_command("STOP")
-            elif message.startswith("DIST,"):
-                try:
-                    self.context.ball_distance = float(message.split(",", 1)[1])
-                except ValueError:
-                    pass
 
     def stop(self) -> None:
         """Encerra o robô de forma limpa."""

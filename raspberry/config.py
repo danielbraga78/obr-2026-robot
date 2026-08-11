@@ -141,7 +141,7 @@ STATE_SEQUENCE = [
 SENSORS_ENABLED = {
     "camera": True,  # Obrigatório
     "vision_obstacle_detection": True,  # Detecção de obstáculos por visão
-    "ultrasonic": False,  # Não disponível atualmente
+    "ultrasonic": True,  # Sensor ultrassônico do Arduino habilitado quando houver hardware
     "tof": False,  # Não disponível atualmente
     "imu": False,  # Não disponível atualmente
     "encoder": False,  # Não disponível atualmente

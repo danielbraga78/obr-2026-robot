@@ -147,17 +147,27 @@ A conexão exata pode variar conforme o firmware. A tabela abaixo mostra uma sug
 | VM | Bateria do motor |
 | VCC | 5V |
 | GND | GND comum |
-| STBY | D12 (ou outro pino digital) |
-| PWMA | D3 (PWM) |
-| AIN1 | D4 |
-| AIN2 | D5 |
-| AO1 | Motor A + |
-| AO2 | Motor A - |
-| PWMB | D6 (PWM) |
-| BIN1 | D7 |
-| BIN2 | D8 |
-| BO1 | Motor B + |
-| BO2 | Motor B - |
+| STBY | D12 (ou outro pino digital, opcional) |
+| PWMA (Ponte A / Motor 4) | D2 (PWM) |
+| AIN1 (Ponte A / Motor 4) | D22 |
+| AIN2 (Ponte A / Motor 4) | D23 |
+| AO1 | Motor 4 + |
+| AO2 | Motor 4 - |
+| PWMB (Ponte A / Motor 2) | D3 (PWM) |
+| BIN1 (Ponte A / Motor 2) | D24 |
+| BIN2 (Ponte A / Motor 2) | D25 |
+| BO1 | Motor 2 + |
+| BO2 | Motor 2 - |
+| PWMA (Ponte B / Motor 3) | D4 (PWM) |
+| AIN1 (Ponte B / Motor 3) | D26 |
+| AIN2 (Ponte B / Motor 3) | D27 |
+| AO1 | Motor 3 + |
+| AO2 | Motor 3 - |
+| PWMB (Ponte B / Motor 1) | D5 (PWM) |
+| BIN1 (Ponte B / Motor 1) | D28 (A4) |
+| BIN2 (Ponte B / Motor 1) | D29 (A5) |
+| BO1 | Motor 1 + |
+| BO2 | Motor 1 - |
 
 ### Observação importante
 

@@ -17,12 +17,12 @@ O objetivo é que qualquer pessoa da equipe consiga montar, conectar, testar e d
 
 ### Mapeamento de pinos do firmware atual (Arduino Mega 2560)
 
-O sketch em [arduino/robot_mega.ino](arduino/robot_mega.ino) usa os seguintes pinos para o robô:
+O sketch em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino) usa os seguintes pinos para o robô:
 
-- Motor 1: enable em D2, IN1 em D22, IN2 em D23
+- Motor 4: enable em D2, IN1 em D22, IN2 em D23
 - Motor 2: enable em D3, IN1 em D24, IN2 em D25
 - Motor 3: enable em D4, IN1 em D26, IN2 em D27
-- Motor 4: enable em D5, IN1 em D28 (A4), IN2 em D29 (A5)
+- Motor 1: enable em D5, IN1 em D28 (A4), IN2 em D29 (A5)
 - Servo da garra: pino D44
 - Sensor ultrassônico: TRIG em A2, ECHO em A3
 

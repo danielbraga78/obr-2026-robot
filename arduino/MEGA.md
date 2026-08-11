@@ -12,25 +12,25 @@ compilar e fazer upload.
   ocupar a USB de programação;
 - Mais memória e recursos para extensões futuras.
 
-## Mapeamento de pinos sugerido
+## Mapeamento de pinos atual
 
-Este é um mapeamento comprovado e não conflituoso em uma placa Mega 2560.
-Altere conforme necessário, mas mantenha o GND comum entre todos os dispositivos.
+Este é o mapeamento usado no firmware atual em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino).
+Mantenha o GND comum entre todos os dispositivos e siga este layout para evitar divergências.
 
-| Constante no sketch | Função | Pino Mega (recomendado) |
+| Constante no sketch | Função | Pino Mega |
 |---|---|---:|
-| `kMotor1EnablePin` | PWM enable Motor FL | `2` (PWM) |
-| `kMotor1In1Pin` | Direção Motor FL | `22` |
-| `kMotor1In2Pin` | Direção Motor FL | `23` |
-| `kMotor2EnablePin` | PWM enable Motor FR | `3` (PWM) |
-| `kMotor2In1Pin` | Direção Motor FR | `24` |
-| `kMotor2In2Pin` | Direção Motor FR | `25` |
-| `kMotor3EnablePin` | PWM enable Motor RL | `4` (PWM) |
-| `kMotor3In1Pin` | Direção Motor RL | `26` |
-| `kMotor3In2Pin` | Direção Motor RL | `27` |
-| `kMotor4EnablePin` | PWM enable Motor RR | `5` (PWM) |
-| `kMotor4In1Pin` | Direção Motor RR | `28` |
-| `kMotor4In2Pin` | Direção Motor RR | `29` |
+| `kMotor4EnablePin` | PWM enable Motor 4 | `2` (PWM) |
+| `kMotor4In1Pin` | Direção Motor 4 | `22` |
+| `kMotor4In2Pin` | Direção Motor 4 | `23` |
+| `kMotor2EnablePin` | PWM enable Motor 2 | `3` (PWM) |
+| `kMotor2In1Pin` | Direção Motor 2 | `24` |
+| `kMotor2In2Pin` | Direção Motor 2 | `25` |
+| `kMotor3EnablePin` | PWM enable Motor 3 | `4` (PWM) |
+| `kMotor3In1Pin` | Direção Motor 3 | `26` |
+| `kMotor3In2Pin` | Direção Motor 3 | `27` |
+| `kMotor1EnablePin` | PWM enable Motor 1 | `5` (PWM) |
+| `kMotor1In1Pin` | Direção Motor 1 | `28` |
+| `kMotor1In2Pin` | Direção Motor 1 | `29` |
 | `kServoPin` | Sinal do servo da garra | `44` (servo) |
 | `kUltrasonicTrigPin` | TRIG HC-SR04 | `A2` |
 | `kUltrasonicEchoPin` | ECHO HC-SR04 | `A3` |
