@@ -10,8 +10,9 @@ if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from raspberry.camera import CameraManager
-from raspberry.config import CAMERA_BACKEND, OBSTACLE_CONFIDENCE_THRESHOLD, OBSTACLE_DETECTION_ENABLED, OBSTACLE_MIN_AREA, OBSTACLE_PROXIMITY_THRESHOLD_CM, SERIAL_BAUDRATE, SERIAL_MODE, SERIAL_PORT, SERIAL_RECONNECT_DELAY, SERIAL_TIMEOUT, SENSORS_ENABLED, RobotContext
+from raspberry.config import CAMERA_BACKEND, OBSTACLE_CONFIDENCE_THRESHOLD, OBSTACLE_DETECTION_ENABLED, OBSTACLE_MIN_AREA, SENSOR_ENABLE_RETRY_INTERVAL, SERIAL_BAUDRATE, SERIAL_MODE, SERIAL_PORT, SERIAL_RECONNECT_DELAY, SERIAL_TIMEOUT, SENSORS_ENABLED, RobotContext
 from raspberry.serial_manager import SerialManager
+from raspberry.ultrasonic import UltrasonicMonitor
 from raspberry.preview import PreviewWindow
 from raspberry.state_machine import RobotStateMachine
 from raspberry.strategy import Strategy
@@ -40,23 +41,25 @@ logging.basicConfig(level=os.environ.get("ROBOT_LOG_LEVEL", "INFO").upper(), for
 logger = logging.getLogger(__name__)
 
 
-def update_context_from_serial_message(context, message: str) -> None:
-    """Atualiza o contexto com eventos e leituras vindas do Arduino."""
+def update_context_from_serial_message(context, message: str, ultrasonic=None) -> None:
+    """Atualiza o contexto com eventos e leituras vindas do Arduino.
+
+    `ultrasonic` é o UltrasonicMonitor que valida as leituras. Quando é None o
+    sensor está desabilitado em SENSORS_ENABLED e as linhas DIST são ignoradas,
+    para que um sensor não conectado (ou um firmware antigo) não gere obstáculo.
+    """
     if message == "OBSTACLE":
-        context.set_temporal_flag("obstacle_detected", True)
+        context.set_obstacle_source("range", True)
         return
 
     if message.startswith("DIST,"):
+        if ultrasonic is None:
+            return
         try:
             distance_cm = float(message.split(",", 1)[1])
         except ValueError:
             return
-
-        context.obstacle_distance = distance_cm
-        if distance_cm > 0 and distance_cm <= OBSTACLE_PROXIMITY_THRESHOLD_CM:
-            context.set_temporal_flag("obstacle_detected", True)
-        else:
-            context.set_temporal_flag("obstacle_detected", False)
+        ultrasonic.update(context, distance_cm)
         return
 
 
@@ -76,12 +79,19 @@ def build_vision_detectors() -> dict:
 
 
 class RobotApp:
+    # Valores padrão de classe: mantêm instâncias construídas via __new__
+    # (harness de teste) funcionando sem precisar declarar cada atributo.
+    ultrasonic = None
+    _sensor_arm_sent_at = None
+    _last_distance_at = None
+
     def __init__(self) -> None:
         self.camera = CameraManager(backend=CAMERA_BACKEND)
         self.serial = SerialManager(mode=SERIAL_MODE, port=SERIAL_PORT, baudrate=SERIAL_BAUDRATE, timeout=SERIAL_TIMEOUT, reconnect_delay=SERIAL_RECONNECT_DELAY)
         self.serial.connect()
-        if SENSORS_ENABLED.get("ultrasonic", False):
-            self.serial.send_command("SENSOR,ULTRASONIC,ON")
+        self.ultrasonic = UltrasonicMonitor() if SENSORS_ENABLED.get("ultrasonic", False) else None
+        self._sensor_arm_sent_at = None
+        self._last_distance_at = None
         self.context = RobotContext()
         self.context.camera_ready = self.camera.is_ready()
         self.context.serial_ready = self.serial.is_connected()
@@ -137,6 +147,7 @@ class RobotApp:
         self.context.camera_ready = self.camera.is_ready()
         self.context.serial_ready = self.serial.is_connected()
         self._process_messages()
+        self._ensure_sensors_armed()
 
         try:
             result = self.result_queue.get_nowait()
@@ -254,7 +265,7 @@ class RobotApp:
         obstacle_detection = detections.get("obstacle")
         if obstacle_detection is not None:
             detected = bool(getattr(obstacle_detection, "obstacle_detected", False))
-            self.context.set_temporal_flag("obstacle_detected", detected)
+            self.context.set_obstacle_source("vision", detected)
         ball = detections.get("ball")
         self.context.ball_detected = ball is not None
         if ball is not None:
@@ -284,11 +295,47 @@ class RobotApp:
         self.context.safe_zone_detected = False
         self.context.ball_detected = False
         self.context.ball_distance = None
+        # A visão parou de chegar: só o ultrassônico continua valendo.
+        self.context.set_obstacle_source("vision", False)
+
+    def _arm_optional_sensors(self, reason: str) -> None:
+        """Pede ao Arduino para ligar os sensores opcionais."""
+        if self.ultrasonic is None:
+            return
+        self.serial.send_command("SENSOR,ULTRASONIC,ON")
+        self._sensor_arm_sent_at = self._now()
+        logger.info("Habilitando ultrassônico no Arduino (%s)", reason)
+
+    def _ensure_sensors_armed(self) -> None:
+        """Reenvia a habilitação enquanto nenhum DIST estiver chegando.
+
+        Enviar uma única vez na inicialização não funciona: abrir a porta serial
+        alterna o DTR e reseta o Mega, que passa segundos no bootloader e perde o
+        comando. O firmware imprime READY ao final do setup e é aí que armamos —
+        mas se a porta já estava aberta antes de subirmos, esse READY nunca vem.
+        Este reenvio cobre os dois casos e também o Arduino reiniciando no meio
+        da prova.
+        """
+        if self.ultrasonic is None or not self.serial.is_connected():
+            return
+        now = self._now()
+        if self._last_distance_at is not None and (now - self._last_distance_at) < SENSOR_ENABLE_RETRY_INTERVAL:
+            return
+        if self._sensor_arm_sent_at is not None and (now - self._sensor_arm_sent_at) < SENSOR_ENABLE_RETRY_INTERVAL:
+            return
+        self._arm_optional_sensors("nenhuma leitura DIST recebida")
 
     def _process_messages(self) -> None:
         messages = self.serial.read_messages()
         for message in messages:
-            update_context_from_serial_message(self.context, message)
+            update_context_from_serial_message(self.context, message, self.ultrasonic)
+            if message.startswith("DIST,"):
+                self._last_distance_at = self._now()
+            elif message == "READY":
+                logger.info("Arduino pronto (READY)")
+                if self.ultrasonic is not None:
+                    self.ultrasonic.reset()
+                self._arm_optional_sensors("READY do Arduino")
             if message == "BALL_CAPTURED":
                 self.context.set_last_event("BALL_CAPTURED")
             elif message == "BALL_DROPPED":

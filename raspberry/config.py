@@ -84,6 +84,26 @@ OBSTACLE_CONFIDENCE_THRESHOLD = 0.3  # 0.0 a 1.0
 OBSTACLE_MIN_AREA = 100  # Pixels mínimos para considerar um objeto
 OBSTACLE_PROXIMITY_THRESHOLD_CM = 25  # Distância estimada para reagir
 
+# Cada fonte de obstáculo (visão e ultrassônico) mantém a própria flag; a flag
+# agregada obstacle_detected é o OU das duas dentro desta janela. Sem isso a
+# fonte que reporta "livre" apaga o obstáculo que a outra acabou de ver.
+OBSTACLE_SOURCE_TTL = 0.25
+
+# ============================================================================
+# Configuração do Sensor Ultrassônico (HC-SR04 no Arduino)
+# ============================================================================
+# O firmware começa com a medição desligada e só liga ao receber
+# "SENSOR,ULTRASONIC,ON". Ligue SENSORS_ENABLED["ultrasonic"] apenas com o
+# sensor de fato conectado: com o pino ECHO solto o pulseIn devolve valores
+# aleatórios dentro da faixa válida e o robô desvia de obstáculos inexistentes.
+ULTRASONIC_MIN_VALID_CM = 2.0  # Abaixo disso o HC-SR04 não mede
+ULTRASONIC_MAX_VALID_CM = 400.0  # Acima disso é eco espúrio
+ULTRASONIC_MAX_JUMP_CM = 40.0  # Salto máximo entre leituras a 10 Hz
+ULTRASONIC_CONFIRM_READINGS = 2  # Leituras próximas seguidas para confirmar
+# Reenvia o comando de habilitação enquanto nenhum DIST chegar (o primeiro envio
+# se perde no bootloader do Arduino, que reseta quando a porta serial é aberta).
+SENSOR_ENABLE_RETRY_INTERVAL = 3.0
+
 # ============================================================================
 # Configuração PID (Controle de Navegação)
 # ============================================================================
@@ -149,11 +169,22 @@ SENSORS_ENABLED = {
 }
 
 
+# Nome da flag temporal de cada fonte de obstáculo.
+OBSTACLE_SOURCE_FLAGS = {
+    "vision": "obstacle_detected_vision",
+    "range": "obstacle_detected_range",
+}
+
+
 @dataclass
 class RobotContext:
     current_state: str = BOOT
     last_command: Optional[str] = None
+    # Agregada: verdadeira quando qualquer fonte viu obstáculo recentemente.
     obstacle_detected: bool = False
+    obstacle_detected_vision: bool = False
+    obstacle_detected_range: bool = False
+    obstacle_distance: Optional[float] = None
     line_center: Optional[float] = None
     rescue_detected: bool = False
     safe_zone_detected: bool = False
@@ -167,7 +198,7 @@ class RobotContext:
     _event_timestamps: Dict[str, float] = field(default_factory=dict)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in {"obstacle_detected", "rescue_detected", "safe_zone_detected", "ball_detected"} and isinstance(value, bool):
+        if name in {"obstacle_detected", "obstacle_detected_vision", "obstacle_detected_range", "rescue_detected", "safe_zone_detected", "ball_detected"} and isinstance(value, bool):
             temporal_flags = getattr(self, "_temporal_flags", None)
             if temporal_flags is None:
                 object.__setattr__(self, name, value)
@@ -201,6 +232,33 @@ class RobotContext:
         if timestamp is None:
             return False
         return (current_time - timestamp) <= ttl
+
+    def set_obstacle_source(self, source: str, value: bool, *, now: Optional[float] = None) -> None:
+        """Registra o obstáculo visto por uma fonte específica.
+
+        A flag agregada `obstacle_detected` — a que a Strategy lê — passa a ser o
+        OU das fontes recentes. Antes visão e ultrassônico escreviam direto nela
+        e se apagavam: o ultrassônico marcava obstáculo a 12 cm e o quadro de
+        visão seguinte, sem obstáculo no campo dele, limpava antes de alguém ler.
+        """
+        flag = OBSTACLE_SOURCE_FLAGS[source]
+        self.set_temporal_flag(flag, value, now=now)
+        aggregate = any(
+            self.has_recent_temporal_flag(name, OBSTACLE_SOURCE_TTL, now=now)
+            for name in OBSTACLE_SOURCE_FLAGS.values()
+        )
+        self.set_temporal_flag("obstacle_detected", aggregate, now=now)
+
+    def clear_obstacle_sources(self, *, now: Optional[float] = None) -> None:
+        """Consome o obstáculo: zera as fontes e a agregada.
+
+        Usado pelo estado de desvio. Zerar só a agregada não bastaria — a
+        próxima atualização de qualquer fonte a recalcularia como verdadeira a
+        partir da fonte antiga, e o robô ficaria desviando do mesmo evento.
+        """
+        for name in OBSTACLE_SOURCE_FLAGS.values():
+            self.set_temporal_flag(name, False, now=now)
+        self.set_temporal_flag("obstacle_detected", False, now=now)
 
     def set_last_event(self, event: Optional[str], *, now: Optional[float] = None) -> None:
         current_time = time.monotonic() if now is None else now
