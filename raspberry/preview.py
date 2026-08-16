@@ -23,7 +23,6 @@ from .config import (
     PREVIEW_MODE,
     PREVIEW_SHOW_OVERLAY,
     PREVIEW_WINDOW_NAME,
-    VISION_PROCESS_HEIGHT,
     VISION_PROCESS_WIDTH,
     VISION_ROI,
 )
@@ -145,7 +144,8 @@ class PreviewWindow:
     def _draw_roi(self, canvas: np.ndarray, roi: tuple[int, int, int, int]) -> None:
         x0, y0, x1, y1 = roi
         cv2.rectangle(canvas, (x0, y0), (x1, y1), _COLOR_ROI, 2)
-        cv2.putText(canvas, "ROI", (x0 + 6, y0 + 20), _FONT, 0.5, _COLOR_ROI, 1, cv2.LINE_AA)
+        # A caixa é a ROI do seguidor de linha; bola e zonas usam outras.
+        cv2.putText(canvas, "ROI linha", (x0 + 6, y0 + 20), _FONT, 0.5, _COLOR_ROI, 1, cv2.LINE_AA)
         center = (x0 + x1) // 2
         cv2.line(canvas, (center, y0), (center, y1), _COLOR_CENTER, 1)
 
@@ -181,16 +181,22 @@ class PreviewWindow:
         cv2.circle(canvas, (px, (y0 + y1) // 2), 7, _COLOR_LINE, -1)
 
     def _draw_ball(self, canvas: np.ndarray, roi: tuple[int, int, int, int], ball) -> None:
-        if ball is None or not hasattr(ball, "x"):
+        """Desenha a bola pela posição normalizada, não pela ROI da linha.
+
+        Cada detector analisa uma ROI própria; a da bola é o quadro inteiro, e a
+        desenhada aqui era a do seguidor de linha. As coordenadas normalizadas
+        valem no quadro original, então servem para qualquer perfil.
+        """
+        if ball is None or not hasattr(ball, "x_norm"):
             return
-        x0, y0, x1, y1 = roi
-        scale_x = (x1 - x0) / max(VISION_PROCESS_WIDTH, 1)
-        scale_y = (y1 - y0) / max(VISION_PROCESS_HEIGHT, 1)
-        px = self._to_source_x(ball.x, roi, VISION_PROCESS_WIDTH)
-        py = int(min(max(y0 + ball.y * scale_y, y0), y1))
-        radius = max(4, int(ball.radius * scale_x))
+        height, width = canvas.shape[:2]
+        px = int((getattr(ball, "x_norm", 0.0) + 1.0) / 2.0 * width)
+        py = int((getattr(ball, "y_norm", 0.0) + 1.0) / 2.0 * height)
+        radius = max(4, int(ball.radius * width / max(VISION_PROCESS_WIDTH, 1)))
         cv2.circle(canvas, (px, py), radius, _COLOR_BALL, 2)
-        cv2.putText(canvas, f"bola {ball.distance:.0f}cm", (px + radius + 4, py), _FONT, 0.5, _COLOR_BALL, 1, cv2.LINE_AA)
+        distance = getattr(ball, "distance", None)
+        label = f"bola {ball.color} {distance:.0f}cm" if distance is not None else f"bola {ball.color} ?"
+        cv2.putText(canvas, label, (px + radius + 4, py), _FONT, 0.5, _COLOR_BALL, 1, cv2.LINE_AA)
 
     def _draw_status(self, canvas: np.ndarray, context, command: Optional[str], stats: Optional[str], detections: dict) -> None:
         line = detections.get("line")

@@ -20,10 +20,12 @@ import numpy as np
 from typing import Optional
 from dataclasses import dataclass
 
+from ..config import OBSTACLE_MAX_ASPECT
 from ..sensor_interface import (
     ObstacleDetector,
     ObstacleDetectionResult,
 )
+from .shapes import contour_metrics
 
 
 @dataclass
@@ -45,7 +47,9 @@ class VisionBasedObstacleDetector(ObstacleDetector):
     3. Estima a distância relativa através de tamanho e posição
     4. Reporta confiança baseada na análise
     """
-    
+
+    roi_profile = "near"
+
     def __init__(
         self,
         frame_width: int = 320,
@@ -181,6 +185,11 @@ class VisionBasedObstacleDetector(ObstacleDetector):
             area = cv2.contourArea(contour)
             area_ratio = area / roi_area if roi_area else 0.0
             if area >= self.min_obstacle_area and area_ratio < 0.5:
+                # A linha preta é escura, grande e logo à frente: passava por
+                # obstáculo em todo quadro do seguidor de linha. O que a denuncia
+                # é a forma — um obstáculo é compacto, a linha é alongada.
+                if contour_metrics(contour).aspect > OBSTACLE_MAX_ASPECT:
+                    continue
                 x, y, w, h = cv2.boundingRect(contour)
                 obstacles.append({
                     'area': area,

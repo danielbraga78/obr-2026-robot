@@ -28,6 +28,10 @@ class LineDetection:
 class LineDetector:
     """Detecta a linha principal, por limiar adaptativo ou por faixa HSV fixa."""
 
+    # A faixa logo à frente do robô. Usar o quadro inteiro misturaria a linha
+    # próxima com curvas distantes e distorceria o erro do PID.
+    roi_profile = "near"
+
     def __init__(self, mode: str = LINE_THRESHOLD_MODE) -> None:
         self.mode = mode
         self.last_mask: Optional[np.ndarray] = None  # Exposto para o preview

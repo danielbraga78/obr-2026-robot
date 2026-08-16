@@ -261,7 +261,9 @@ class RobotApp:
             name: value for name, value in detections.items() if value is not None
         }
         self.context.rescue_detected = bool(detections.get("rescue"))
-        self.context.safe_zone_detected = bool(detections.get("safe_zone"))
+        safe_zone = detections.get("safe_zone")
+        self.context.safe_zone_detected = safe_zone is not None
+        self.context.safe_zone_color = getattr(safe_zone, "color", None)
         obstacle_detection = detections.get("obstacle")
         if obstacle_detection is not None:
             detected = bool(getattr(obstacle_detection, "obstacle_detected", False))
@@ -270,6 +272,7 @@ class RobotApp:
         self.context.ball_detected = ball is not None
         if ball is not None:
             self.context.ball_distance = getattr(ball, "distance", None)
+            self.context.ball_color = getattr(ball, "color", None)
         self.context.expire_temporal_signals()
 
     def _resolve_command(self, state_result) -> str:
@@ -295,6 +298,8 @@ class RobotApp:
         self.context.safe_zone_detected = False
         self.context.ball_detected = False
         self.context.ball_distance = None
+        self.context.ball_color = None
+        self.context.safe_zone_color = None
         # A visão parou de chegar: só o ultrassônico continua valendo.
         self.context.set_obstacle_source("vision", False)
 

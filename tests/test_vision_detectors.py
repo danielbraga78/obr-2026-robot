@@ -1,75 +1,188 @@
+"""Detectores sobre cenas sintéticas com as cores reais da arena.
+
+As cenas antigas usavam manchas amarelas, cor que não existe na prova: as bolas
+são prateada e preta, as zonas seguras têm parede verde e vermelha, e a entrada
+da área de resgate é uma faixa prateada.
+"""
+
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import cv2
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from raspberry.main import build_vision_detectors
-from raspberry.vision.ball_detector import BallDetector
+from raspberry.vision.ball_detector import BLACK, SILVER, BallDetector
 from raspberry.vision.obstacle_detector import VisionBasedObstacleDetector
 from raspberry.vision.rescue_detector import RescueDetector
-from raspberry.vision.safe_zone_detector import SafeZoneDetector
+from raspberry.vision.safe_zone_detector import GREEN, RED, SafeZoneDetector
+
+FLOOR = (200, 200, 200)  # Piso claro da arena, em BGR
+BLACK_BGR = (25, 25, 25)
+SILVER_BGR = (235, 235, 235)
+GREEN_BGR = (60, 170, 60)
+RED_BGR = (50, 50, 190)
 
 
-class ColorDetectorThresholdTests(unittest.TestCase):
-    def _make_hsv_frame(self, height=120, width=160, patch_size=0, hue=30):
-        hsv = np.zeros((height, width, 3), dtype=np.uint8)
-        if patch_size > 0:
-            y0 = (height - patch_size) // 2
-            x0 = (width - patch_size) // 2
-            hsv[y0:y0 + patch_size, x0:x0 + patch_size, 0] = hue
-            hsv[y0:y0 + patch_size, x0:x0 + patch_size, 1] = 255
-            hsv[y0:y0 + patch_size, x0:x0 + patch_size, 2] = 255
-        return hsv
+def floor_frame(height=240, width=320):
+    return np.full((height, width, 3), FLOOR, dtype=np.uint8)
 
-    def test_rescue_detector_rejects_empty_mask(self):
-        detector = RescueDetector(debounce_frames=1)
-        hsv = self._make_hsv_frame()
-        self.assertFalse(detector.detect_from_hsv(hsv, frame=np.zeros((120, 160, 3), dtype=np.uint8)))
 
-    def test_rescue_detector_rejects_tiny_area(self):
-        detector = RescueDetector(debounce_frames=1)
-        hsv = self._make_hsv_frame(patch_size=3)
-        self.assertFalse(detector.detect_from_hsv(hsv, frame=np.zeros((120, 160, 3), dtype=np.uint8)))
+def with_ball(frame, center, radius, color):
+    cv2.circle(frame, center, radius, color, thickness=-1)
+    return frame
 
-    def test_rescue_detector_accepts_intermediate_area(self):
-        detector = RescueDetector(debounce_frames=1)
-        hsv = self._make_hsv_frame(patch_size=20)
-        self.assertTrue(detector.detect_from_hsv(hsv, frame=np.zeros((120, 160, 3), dtype=np.uint8)))
 
-    def test_rescue_detector_accepts_sufficient_area(self):
-        detector = RescueDetector(debounce_frames=1)
-        hsv = self._make_hsv_frame(patch_size=80)
-        self.assertTrue(detector.detect_from_hsv(hsv, frame=np.zeros((120, 160, 3), dtype=np.uint8)))
-
-    def test_safe_zone_detector_matches_across_resolutions(self):
-        detector = SafeZoneDetector(debounce_frames=1)
-        for height, width in ((120, 160), (240, 320), (480, 640)):
-            with self.subTest(height=height, width=width):
-                hsv = self._make_hsv_frame(height=height, width=width, patch_size=min(40, height // 2), hue=40)
-                self.assertTrue(detector.detect_from_hsv(hsv, frame=np.zeros((height, width, 3), dtype=np.uint8)))
+def with_band(frame, y0, y1, color, x0=0, x1=None):
+    x1 = frame.shape[1] if x1 is None else x1
+    cv2.rectangle(frame, (x0, y0), (x1, y1), color, thickness=-1)
+    return frame
 
 
 class BallDetectorTests(unittest.TestCase):
-    def _make_ball_frame(self, radius: int):
-        frame = np.zeros((240, 320, 3), dtype=np.uint8)
-        hsv = np.zeros((240, 320, 3), dtype=np.uint8)
-        cv2.circle(hsv, (160, 120), radius, (30, 255, 255), thickness=-1)
-        frame = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-        return frame, hsv
+    def setUp(self) -> None:
+        self.detector = BallDetector()
 
-    def test_ball_detector_distance_is_smaller_for_bigger_ball(self):
-        detector = BallDetector()
-        small_frame, small_hsv = self._make_ball_frame(6)
-        large_frame, large_hsv = self._make_ball_frame(24)
+    def test_detects_black_ball(self):
+        frame = with_ball(floor_frame(), (160, 120), 20, BLACK_BGR)
 
-        small_ball = detector.detect_from_hsv(small_hsv, frame=small_frame, source_frame=small_frame, roi=(0.0, 0.0, 1.0, 1.0))
-        large_ball = detector.detect_from_hsv(large_hsv, frame=large_frame, source_frame=large_frame, roi=(0.0, 0.0, 1.0, 1.0))
+        ball = self.detector.detect(frame)
 
-        self.assertIsNotNone(small_ball)
-        self.assertIsNotNone(large_ball)
-        self.assertGreater(small_ball.distance, large_ball.distance)
-        self.assertGreater(large_ball.confidence, small_ball.confidence)
+        self.assertIsNotNone(ball)
+        self.assertEqual(ball.color, BLACK)
+
+    def test_detects_silver_ball(self):
+        frame = with_ball(floor_frame(), (160, 120), 20, SILVER_BGR)
+        # Reflexo especular: o que caracteriza a prateada
+        cv2.circle(frame, (154, 114), 5, (255, 255, 255), thickness=-1)
+
+        ball = self.detector.detect(frame)
+
+        self.assertIsNotNone(ball)
+        self.assertEqual(ball.color, SILVER)
+
+    def test_black_line_is_not_a_ball(self):
+        # Mesma cor da bola preta, forma alongada: só a forma distingue.
+        frame = with_band(floor_frame(), 100, 116, BLACK_BGR)
+
+        self.assertIsNone(self.detector.detect(frame))
+
+    def test_silver_line_is_not_a_ball(self):
+        frame = with_band(floor_frame(), 100, 112, SILVER_BGR)
+
+        self.assertIsNone(self.detector.detect(frame))
+
+    def test_colored_object_is_not_a_ball(self):
+        frame = with_ball(floor_frame(), (160, 120), 20, (40, 40, 200))
+
+        self.assertIsNone(self.detector.detect(frame))
+
+    def test_tiny_blob_is_rejected(self):
+        frame = with_ball(floor_frame(), (160, 120), 3, BLACK_BGR)
+
+        self.assertIsNone(self.detector.detect(frame))
+
+    def test_lower_ball_is_closer(self):
+        near = self.detector.detect(with_ball(floor_frame(), (160, 200), 20, BLACK_BGR))
+        far = self.detector.detect(with_ball(floor_frame(), (160, 60), 20, BLACK_BGR))
+
+        self.assertIsNotNone(near)
+        self.assertIsNotNone(far)
+        self.assertLess(near.distance, far.distance)
+
+    def test_horizontal_position_is_normalized(self):
+        left = self.detector.detect(with_ball(floor_frame(), (60, 120), 20, BLACK_BGR))
+        right = self.detector.detect(with_ball(floor_frame(), (260, 120), 20, BLACK_BGR))
+
+        self.assertLess(left.x_norm, -0.2)
+        self.assertGreater(right.x_norm, 0.2)
+
+    def test_picks_the_closest_of_two_balls(self):
+        frame = with_ball(floor_frame(), (80, 60), 20, BLACK_BGR)
+        with_ball(frame, (240, 200), 20, BLACK_BGR)
+
+        ball = self.detector.detect(frame)
+
+        self.assertGreater(ball.x_norm, 0.0)
+
+
+class SafeZoneDetectorTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.detector = SafeZoneDetector(debounce_frames=1)
+
+    def test_detects_green_wall(self):
+        frame = with_band(floor_frame(), 0, 40, GREEN_BGR)
+
+        zone = self.detector.detect(frame)
+
+        self.assertIsNotNone(zone)
+        self.assertEqual(zone.color, GREEN)
+
+    def test_detects_red_wall(self):
+        # Vermelho fica na dobra do matiz: sem as duas faixas, não é detectado.
+        frame = with_band(floor_frame(), 0, 40, RED_BGR)
+
+        zone = self.detector.detect(frame)
+
+        self.assertIsNotNone(zone)
+        self.assertEqual(zone.color, RED)
+
+    def test_empty_scene_is_not_a_zone(self):
+        self.assertIsNone(self.detector.detect(floor_frame()))
+
+    def test_tiny_reflection_is_rejected(self):
+        frame = with_band(floor_frame(), 0, 4, GREEN_BGR, x0=0, x1=10)
+
+        self.assertIsNone(self.detector.detect(frame))
+
+    def test_debounce_requires_consecutive_frames(self):
+        detector = SafeZoneDetector(debounce_frames=2)
+        frame = with_band(floor_frame(), 0, 40, GREEN_BGR)
+
+        self.assertIsNone(detector.detect(frame))
+        self.assertIsNotNone(detector.detect(frame))
+
+    def test_bearing_points_to_the_wall_side(self):
+        frame = with_band(floor_frame(), 0, 40, GREEN_BGR, x0=0, x1=90)
+
+        zone = self.detector.detect(frame)
+
+        self.assertLess(zone.x_norm, 0.0)
+
+
+class RescueDetectorTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.detector = RescueDetector(debounce_frames=1)
+
+    def test_detects_silver_entrance_band(self):
+        frame = with_band(floor_frame(), 150, 162, SILVER_BGR)
+
+        self.assertTrue(self.detector.detect(frame))
+
+    def test_empty_floor_is_not_the_entrance(self):
+        self.assertFalse(self.detector.detect(floor_frame()))
+
+    def test_silver_ball_is_not_the_entrance(self):
+        # Mesma cor da faixa, forma compacta: não é a entrada.
+        frame = with_ball(floor_frame(), (160, 120), 22, SILVER_BGR)
+
+        self.assertFalse(self.detector.detect(frame))
+
+    def test_black_line_is_not_the_entrance(self):
+        frame = with_band(floor_frame(), 150, 162, BLACK_BGR)
+
+        self.assertFalse(self.detector.detect(frame))
+
+    def test_debounce_requires_consecutive_frames(self):
+        detector = RescueDetector(debounce_frames=2)
+        frame = with_band(floor_frame(), 150, 162, SILVER_BGR)
+
+        self.assertFalse(detector.detect(frame))
+        self.assertTrue(detector.detect(frame))
 
 
 class ObstacleDetectorTests(unittest.TestCase):
@@ -96,6 +209,16 @@ class ObstacleDetectorTests(unittest.TestCase):
         detector.set_frame(np.zeros((120, 160, 3), dtype=np.uint8))
         result = detector.detect()
         self.assertFalse(result.obstacle_detected)
+
+    def test_black_line_is_not_an_obstacle(self):
+        # A linha é escura e grande na faixa próxima: passava por obstáculo em
+        # todo quadro do seguidor de linha.
+        detector = VisionBasedObstacleDetector(confidence_threshold=0.0, min_obstacle_area=10)
+        frame = np.full((120, 160, 3), 200, dtype=np.uint8)
+        cv2.rectangle(frame, (70, 40), (86, 119), (0, 0, 0), thickness=-1)
+        detector.set_frame(frame)
+
+        self.assertFalse(detector.detect().obstacle_detected)
 
 
 if __name__ == "__main__":

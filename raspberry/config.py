@@ -32,6 +32,16 @@ CAMERA_WARMUP_FRAMES = 3  # Frames descartados na abertura (auto-exposição)
 CAMERA_MAX_RECONNECT_DELAY = 5.0  # Teto do backoff quando não há câmera presente
 CAMERA_DIAGNOSTIC_INTERVAL = 15.0  # Intervalo entre diagnósticos repetidos no log
 
+# Geometria da montagem, usada para converter posição no quadro em distância no
+# chão. Valores da montagem recomendada em .planos/montagem-camera.md; precisam
+# ser medidos com régua e transferidor no robô montado, senão a distância das
+# bolas sai errada. O FOV vertical vale para o modo de FOV completo do IMX219.
+CAMERA_HEIGHT_CM = 18.0
+CAMERA_TILT_DEG = 35.0
+CAMERA_VFOV_DEG = 48.8
+CAMERA_HFOV_DEG = 62.2
+GROUND_MAX_DISTANCE_CM = 200.0  # Teto da estimativa; além disso é "longe"
+
 # ============================================================================
 # Configuração do Preview (janela na tela do Raspberry Pi)
 # ============================================================================
@@ -55,6 +65,18 @@ VISION_PROCESS_HEIGHT = 240
 VISION_ROI = (0.0, 0.55, 1.0, 1.0)
 VISION_FRAME_TIMEOUT = 0.2
 
+# Cada detector analisa a região que interessa a ele, e não uma ROI única para
+# todos. Com a ROI única do seguidor de linha, uma bola a 20 cm era recortada da
+# imagem antes de qualquer detector rodar, e girando 360º na área de resgate o
+# robô cobria 8% dela. Já as paredes coloridas aparecem como faixa fina no topo
+# do quadro, onde a faixa do seguidor de linha nunca chega.
+VISION_ROI_PROFILES = {
+    "near": (0.0, 0.55, 1.0, 1.0),  # Faixa logo à frente: linha, obstáculo, fronteira
+    "full": (0.0, 0.0, 1.0, 1.0),  # Campo inteiro: bolas de perto e de longe
+    "upper": (0.0, 0.0, 1.0, 0.55),  # Topo: paredes das zonas seguras
+}
+VISION_DEFAULT_ROI_PROFILE = "near"
+
 # Detecção da linha
 # "adaptive" usa Otsu no canal V e se ajusta sozinho à iluminação da arena.
 # "hsv" usa os limiares fixos LINE_MIN/LINE_MAX abaixo (frágil: fita preta sob
@@ -64,15 +86,51 @@ LINE_MIN_CONTRAST = 25  # Diferença mínima entre linha e piso para aceitar a m
 LINE_MAX_COVERAGE = 0.6  # Acima disso a "linha" virou o quadro todo: rejeita
 LINE_MIN_AREA = 100  # Área mínima do contorno, em pixels do quadro processado
 
-# Thresholds para detectores de cor (HSV)
+# Faixa HSV fixa da linha, usada apenas quando LINE_THRESHOLD_MODE == "hsv".
 LINE_MIN = (0, 0, 0)
 LINE_MAX = (180, 150, 80)
-BALL_MIN = (20, 80, 80)
-BALL_MAX = (40, 255, 255)
-RESCUE_MIN = (20, 80, 120)
-RESCUE_MAX = (40, 255, 255)
-SAFE_ZONE_MIN = (30, 80, 80)
-SAFE_ZONE_MAX = (70, 255, 255)
+
+# ---------------------------------------------------------------------------
+# Bolas (vítimas): 2 prateadas e 1 preta
+# ---------------------------------------------------------------------------
+# Nenhuma das duas tem matiz próprio — as duas são acromáticas —, então não há
+# faixa HSV que as encontre. A detecção é por forma sobre uma máscara de brilho
+# relativo à mediana do piso, e a classificação olha o interior do blob:
+# preta é escura e uniforme, prateada tem reflexo especular e desvio alto.
+BALL_MAX_SATURATION = 90  # Acima disso é objeto colorido, não é bola
+BALL_DARK_MARGIN = 45  # V abaixo da mediana do piso para virar candidata preta
+BALL_BRIGHT_MARGIN = 25  # V acima da mediana do piso para virar candidata prateada
+BALL_MIN_AREA = 100  # Pixels no quadro processado; bola de 4 cm a 80 cm dá ~130
+BALL_MIN_CIRCULARITY = 0.65
+BALL_MAX_ASPECT = 1.5
+BALL_SILVER_MIN_V_STD = 18.0  # Desvio de V dentro do blob que indica reflexo
+BALL_BLACK_MAX_V_STD = 30.0  # Preta é escura por igual
+
+# ---------------------------------------------------------------------------
+# Zonas seguras: parede verde e parede vermelha, 6 cm
+# ---------------------------------------------------------------------------
+# Aqui a cor funciona: verde e vermelho são saturados e bem separados em matiz.
+# O vermelho fica na dobra do canal H, por isso precisa de duas faixas.
+GREEN_ZONE_MIN = (35, 70, 50)
+GREEN_ZONE_MAX = (85, 255, 255)
+RED_ZONE_LOW_MIN = (0, 80, 50)
+RED_ZONE_LOW_MAX = (10, 255, 255)
+RED_ZONE_HIGH_MIN = (170, 80, 50)
+RED_ZONE_HIGH_MAX = (180, 255, 255)
+# Fração da região analisada, não soma bruta de pixels: os limiares antigos
+# (10000 e 5000 na soma da máscara) equivaliam a 39 e 20 pixels em 76.800.
+ZONE_MIN_AREA_RATIO = 0.02
+
+# ---------------------------------------------------------------------------
+# Entrada da área de resgate: a linha prateada no chão
+# ---------------------------------------------------------------------------
+# O detector antigo procurava amarelo, cor que não existe na arena. A entrada é
+# marcada por uma faixa prateada: clara, sem saturação e alongada. A forma é o
+# que a separa da bola prateada, que é compacta.
+SILVER_LINE_MAX_SATURATION = 70
+SILVER_LINE_BRIGHT_MARGIN = 30  # V acima da mediana do piso
+SILVER_LINE_MIN_AREA_RATIO = 0.01
+SILVER_LINE_MIN_ASPECT = 2.5
 
 # ============================================================================
 # Configuração Detecção de Obstáculos (Vision-based)
@@ -83,6 +141,9 @@ OBSTACLE_DETECTION_ENABLED = True
 OBSTACLE_CONFIDENCE_THRESHOLD = 0.3  # 0.0 a 1.0
 OBSTACLE_MIN_AREA = 100  # Pixels mínimos para considerar um objeto
 OBSTACLE_PROXIMITY_THRESHOLD_CM = 25  # Distância estimada para reagir
+# A linha preta é uma região escura grande logo à frente e passava por obstáculo
+# em todo quadro. Blobs alongados são descartados: um obstáculo é compacto.
+OBSTACLE_MAX_ASPECT = 2.5
 
 # Cada fonte de obstáculo (visão e ultrassônico) mantém a própria flag; a flag
 # agregada obstacle_detected é o OU das duas dentro desta janela. Sem isso a
@@ -190,6 +251,8 @@ class RobotContext:
     safe_zone_detected: bool = False
     ball_detected: bool = False
     ball_distance: Optional[float] = None
+    ball_color: Optional[str] = None  # "black" ou "silver": define o canto da entrega
+    safe_zone_color: Optional[str] = None  # Cor da parede da zona visível agora
     last_event: Optional[str] = None
     camera_ready: bool = False
     serial_ready: bool = False
