@@ -1,0 +1,19 @@
+[Unit]
+Description=Robot OBR service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=leosouza
+WorkingDirectory=/home/leosouza/Desktop/robot-OBR/2026/teste
+ExecStart=/bin/bash /home/leosouza/Desktop/robot-OBR/2026/teste/run_robot.sh
+Restart=on-failure
+RestartSec=5
+KillMode=process
+KillSignal=SIGTERM
+Environment=VIRTUAL_ENV=/home/leosouza/Desktop/robot-OBR/.venv
+Environment=PATH=/home/leosouza/Desktop/robot-OBR/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target
