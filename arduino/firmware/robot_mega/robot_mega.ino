@@ -3,21 +3,23 @@
 
 // Sketch para Arduino Mega 2560 — mapeamento de pinos sugerido
 
-constexpr uint8_t kMotor4EnablePin = 2;   // PWM (Mega)
-constexpr uint8_t kMotor4In1Pin = 22;
-constexpr uint8_t kMotor4In2Pin = 23;
+// Ponte H A: motores da esquerda (frontal e traseiro)
+constexpr uint8_t kBridgeAChannelAEnablePin = 2;   // PWM (Mega)
+constexpr uint8_t kBridgeAChannelAIn1Pin = 22;
+constexpr uint8_t kBridgeAChannelAIn2Pin = 23;
 
-constexpr uint8_t kMotor2EnablePin = 3;   // PWM (Mega)
-constexpr uint8_t kMotor2In1Pin = 24;
-constexpr uint8_t kMotor2In2Pin = 25;
+constexpr uint8_t kBridgeAChannelBEnablePin = 3;   // PWM (Mega)
+constexpr uint8_t kBridgeAChannelBIn1Pin = 25;
+constexpr uint8_t kBridgeAChannelBIn2Pin = 24;
 
-constexpr uint8_t kMotor3EnablePin = 4;   // PWM (Mega)
-constexpr uint8_t kMotor3In1Pin = 26;
-constexpr uint8_t kMotor3In2Pin = 27;
+// Ponte H B: motores da direita (frontal e traseiro)
+constexpr uint8_t kBridgeBChannelAEnablePin = 4;   // PWM (Mega)
+constexpr uint8_t kBridgeBChannelAIn1Pin = 26;
+constexpr uint8_t kBridgeBChannelAIn2Pin = 27;
 
-constexpr uint8_t kMotor1EnablePin = 5;   // PWM (Mega)
-constexpr uint8_t kMotor1In1Pin = 28;     // A4 mapped to digital 28
-constexpr uint8_t kMotor1In2Pin = 29;     // A5 mapped to digital 29
+constexpr uint8_t kBridgeBChannelBEnablePin = 5;   // PWM (Mega)
+constexpr uint8_t kBridgeBChannelBIn1Pin = 28;     // A4 mapped to digital 28
+constexpr uint8_t kBridgeBChannelBIn2Pin = 29;     // A5 mapped to digital 29
 
 constexpr uint8_t kServoPin = 44; // use a high-numbered PWM/servo pin
 
@@ -46,10 +48,14 @@ struct MotorChannel {
   uint8_t in2Pin;
 };
 
+struct HBridge {
+  MotorChannel channelA;
+  MotorChannel channelB;
+};
+
 MotionCommand g_motionCommand = {0.0f, 0.0f, 0.0f, false};
 unsigned long g_lastCommandMs = 0;
 bool g_safetyStopActive = false;
-bool g_watchdogTriggered = false;
 
 // Sensor ultrassônico
 bool g_ultrasonicEnabled = false;
@@ -57,28 +63,53 @@ unsigned long g_lastUltrasonicMeasureMs = 0;
 constexpr unsigned long kUltrasonicMeasureIntervalMs = 100;  // 10 Hz
 
 Servo g_gripperServo;
-MotorChannel g_channels[4] = {
-    {kMotor1EnablePin, kMotor1In1Pin, kMotor1In2Pin},
-    {kMotor2EnablePin, kMotor2In1Pin, kMotor2In2Pin},
-    {kMotor3EnablePin, kMotor3In1Pin, kMotor3In2Pin},
-    {kMotor4EnablePin, kMotor4In1Pin, kMotor4In2Pin},
+HBridge g_bridgeA = {
+    {kBridgeAChannelAEnablePin, kBridgeAChannelAIn1Pin, kBridgeAChannelAIn2Pin},
+    {kBridgeAChannelBEnablePin, kBridgeAChannelBIn1Pin, kBridgeAChannelBIn2Pin},
+};
+HBridge g_bridgeB = {
+    {kBridgeBChannelAEnablePin, kBridgeBChannelAIn1Pin, kBridgeBChannelAIn2Pin},
+    {kBridgeBChannelBEnablePin, kBridgeBChannelBIn1Pin, kBridgeBChannelBIn2Pin},
 };
 
+MotorChannel* getMotorChannel(uint8_t motorIndex) {
+  switch (motorIndex) {
+    case 0:
+      return &g_bridgeA.channelA;
+    case 1:
+      return &g_bridgeA.channelB;
+    case 2:
+      return &g_bridgeB.channelA;
+    case 3:
+      return &g_bridgeB.channelB;
+    default:
+      return nullptr;
+  }
+}
+
 void initMotors() {
+  const MotorChannel* channels[4] = {
+      &g_bridgeA.channelA,
+      &g_bridgeA.channelB,
+      &g_bridgeB.channelA,
+      &g_bridgeB.channelB,
+  };
+
   for (uint8_t i = 0; i < 4; ++i) {
-    pinMode(g_channels[i].enablePin, OUTPUT);
-    pinMode(g_channels[i].in1Pin, OUTPUT);
-    pinMode(g_channels[i].in2Pin, OUTPUT);
+    pinMode(channels[i]->enablePin, OUTPUT);
+    pinMode(channels[i]->in1Pin, OUTPUT);
+    pinMode(channels[i]->in2Pin, OUTPUT);
   }
   for (uint8_t i = 0; i < 4; ++i) {
-    digitalWrite(g_channels[i].in1Pin, LOW);
-    digitalWrite(g_channels[i].in2Pin, LOW);
-    analogWrite(g_channels[i].enablePin, 0);
+    digitalWrite(channels[i]->in1Pin, LOW);
+    digitalWrite(channels[i]->in2Pin, LOW);
+    analogWrite(channels[i]->enablePin, 0);
   }
 }
 
 void setMotorSpeed(uint8_t motorIndex, int speed) {
-  if (motorIndex >= 4) {
+  MotorChannel* channel = getMotorChannel(motorIndex);
+  if (channel == nullptr) {
     return;
   }
 
@@ -86,47 +117,52 @@ void setMotorSpeed(uint8_t motorIndex, int speed) {
   const bool reverse = speed < 0;
   const uint8_t pwmValue = static_cast<uint8_t>(abs(speed));
 
-  digitalWrite(g_channels[motorIndex].in1Pin, reverse ? HIGH : LOW);
-  digitalWrite(g_channels[motorIndex].in2Pin, reverse ? LOW : HIGH);
-  analogWrite(g_channels[motorIndex].enablePin, pwmValue);
+  digitalWrite(channel->in1Pin, reverse ? HIGH : LOW);
+  digitalWrite(channel->in2Pin, reverse ? LOW : HIGH);
+  analogWrite(channel->enablePin, pwmValue);
 }
 
 void stopAllMotors() {
+  const MotorChannel* channels[4] = {
+      &g_bridgeA.channelA,
+      &g_bridgeA.channelB,
+      &g_bridgeB.channelA,
+      &g_bridgeB.channelB,
+  };
+
   for (uint8_t i = 0; i < 4; ++i) {
-    digitalWrite(g_channels[i].in1Pin, LOW);
-    digitalWrite(g_channels[i].in2Pin, LOW);
-    analogWrite(g_channels[i].enablePin, 0);
+    digitalWrite(channels[i]->in1Pin, LOW);
+    digitalWrite(channels[i]->in2Pin, LOW);
+    analogWrite(channels[i]->enablePin, 0);
   }
 }
 
 void applyOmniMotion(float vx, float vy, float wz) {
-  // Mapeamento físico do robô:
-  // - Ponte H A: M1 (esquerdo frente) + M3 (esquerdo trás)
-  // - Ponte H B: M2 (direito frente) + M4 (direito trás)
-  // A cinemática é calculada motor a motor para suportar translação lateral,
-  // diagonal e rotação sem depender de frente/trás.
-  const float motor1 = vx + vy + wz;
-  const float motor2 = vx - vy - wz;
-  const float motor3 = vx - vy + wz;
-  const float motor4 = vx + vy - wz;
+  const float frontLeft = vx + vy + wz;
+  const float frontRight = -vx + vy + wz;
+  const float rearLeft = -vx - vy + wz;
+  const float rearRight = vx - vy + wz;
 
-  const float maxAbs = max(max(abs(motor1), abs(motor2)), max(abs(motor3), abs(motor4)));
+  const float maxAbs = max(max(abs(frontLeft), abs(frontRight)), max(abs(rearLeft), abs(rearRight)));
   const float scale = (maxAbs > kMaxMotorSpeed) ? (kMaxMotorSpeed / maxAbs) : 1.0f;
 
-  const int m1 = static_cast<int>(motor1 * scale);
-  const int m2 = static_cast<int>(motor2 * scale);
-  const int m3 = static_cast<int>(motor3 * scale);
-  const int m4 = static_cast<int>(motor4 * scale);
+  const int fl = static_cast<int>(frontLeft * scale);
+  const int fr = static_cast<int>(frontRight * scale);
+  const int rl = static_cast<int>(rearLeft * scale);
+  const int rr = static_cast<int>(rearRight * scale);
 
   if (g_safetyStopActive) {
     stopAllMotors();
     return;
   }
 
-  setMotorSpeed(0, m1);
-  setMotorSpeed(1, m2);
-  setMotorSpeed(2, m3);
-  setMotorSpeed(3, m4);
+  // Ordem lógica: motor 0 = frente esquerdo, motor 1 = trás esquerdo,
+  // motor 2 = frente direito, motor 3 = trás direito.
+  // Os motores da esquerda ficam na Ponte A e os da direita na Ponte B.
+  setMotorSpeed(0, fl);
+  setMotorSpeed(1, rl);
+  setMotorSpeed(2, fr);
+  setMotorSpeed(3, rr);
 }
 
 void stopMotion() {
@@ -156,7 +192,6 @@ void setGripperAngle(int angle) {
 
 void resetWatchdog() {
   g_lastCommandMs = millis();
-  g_watchdogTriggered = false;
 }
 
 void initUltrasonic() {
@@ -207,18 +242,10 @@ void handleUltrasonic() {
 }
 
 void handleWatchdog() {
-  const unsigned long now = millis();
-  if (now - g_lastCommandMs > kWatchdogTimeoutMs) {
-    if (!g_watchdogTriggered) {
-      stopMotion();
-      Serial.println("WATCHDOG");
-      g_watchdogTriggered = true;
-    }
-    return;
-  }
-
-  if (g_watchdogTriggered) {
-    g_watchdogTriggered = false;
+  if (millis() - g_lastCommandMs > kWatchdogTimeoutMs) {
+    stopMotion();
+    Serial.println("WATCHDOG");
+    g_lastCommandMs = millis();
   }
 }
 
@@ -281,12 +308,6 @@ void handleCommand(const String& rawCommand) {
   if (command == "PING") {
     resetWatchdog();
     Serial.println("PONG");
-    return;
-  }
-
-  if (command == "HEARTBEAT") {
-    resetWatchdog();
-    Serial.println("OK");
     return;
   }
 
