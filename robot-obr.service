@@ -1,19 +1,21 @@
 [Unit]
 Description=Robot OBR service
-After=network.target
-Wants=network.target
+After=network.target systemd-udev-settle.service
+Wants=network.target systemd-udev-settle.service
 
 [Service]
 Type=simple
 User=leosouza
+Group=leosouza
+SupplementaryGroups=video dialout
 WorkingDirectory=/home/leosouza/Desktop/robot-OBR/2026/teste
-ExecStart=/bin/bash /home/leosouza/Desktop/robot-OBR/2026/teste/run_robot.sh
+ExecStart=/home/leosouza/Desktop/robot-OBR/2026/teste/.venv/bin/python -u raspberry/main.py
 Restart=on-failure
 RestartSec=5
-KillMode=process
+KillMode=control-group
 KillSignal=SIGTERM
-Environment=VIRTUAL_ENV=/home/leosouza/Desktop/robot-OBR/.venv
-Environment=PATH=/home/leosouza/Desktop/robot-OBR/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=VIRTUAL_ENV=/home/leosouza/Desktop/robot-OBR/2026/teste/.venv
+Environment=PATH=/home/leosouza/Desktop/robot-OBR/2026/teste/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 [Install]
 WantedBy=multi-user.target
