@@ -311,6 +311,12 @@ void handleCommand(const String& rawCommand) {
     return;
   }
 
+  if (command == "HEARTBEAT") {
+    resetWatchdog();
+    Serial.println("OK");
+    return;
+  }
+
   if (command.startsWith("SENSOR,")) {
     // Formato: SENSOR,<nome>,<on|off>
     // Exemplo: SENSOR,ULTRASONIC,ON

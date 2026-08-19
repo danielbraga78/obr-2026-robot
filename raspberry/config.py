@@ -31,6 +31,11 @@ CAMERA_READ_FAILURE_LIMIT = 3  # Falhas seguidas de leitura antes de reabrir o b
 CAMERA_WARMUP_FRAMES = 3  # Frames descartados na abertura (auto-exposição)
 CAMERA_MAX_RECONNECT_DELAY = 5.0  # Teto do backoff quando não há câmera presente
 CAMERA_DIAGNOSTIC_INTERVAL = 15.0  # Intervalo entre diagnósticos repetidos no log
+CAMERA_HEIGHT_CM = 18.0
+CAMERA_TILT_DEG = 35.0
+CAMERA_VFOV_DEG = 48.8
+CAMERA_HFOV_DEG = 62.2
+GROUND_MAX_DISTANCE_CM = 200.0
 
 # ============================================================================
 # Configuração do Preview (janela na tela do Raspberry Pi)
@@ -54,6 +59,12 @@ VISION_PROCESS_HEIGHT = 240
 # a linha próxima com curvas distantes e distorce o erro do PID.
 VISION_ROI = (0.0, 0.55, 1.0, 1.0)
 VISION_FRAME_TIMEOUT = 0.2
+VISION_ROI_PROFILES = {
+    "near": (0.0, 0.55, 1.0, 1.0),
+    "full": (0.0, 0.0, 1.0, 1.0),
+    "upper": (0.0, 0.0, 1.0, 0.55),
+}
+VISION_DEFAULT_ROI_PROFILE = "near"
 
 # Detecção da linha
 # "adaptive" usa Otsu no canal V e se ajusta sozinho à iluminação da arena.
@@ -63,6 +74,28 @@ LINE_THRESHOLD_MODE = "adaptive"
 LINE_MIN_CONTRAST = 25  # Diferença mínima entre linha e piso para aceitar a máscara
 LINE_MAX_COVERAGE = 0.6  # Acima disso a "linha" virou o quadro todo: rejeita
 LINE_MIN_AREA = 100  # Área mínima do contorno, em pixels do quadro processado
+
+BALL_MAX_SATURATION = 90
+BALL_DARK_MARGIN = 45
+BALL_BRIGHT_MARGIN = 25
+BALL_MIN_AREA = 100
+BALL_MIN_CIRCULARITY = 0.65
+BALL_MAX_ASPECT = 1.5
+BALL_SILVER_MIN_V_STD = 18.0
+BALL_BLACK_MAX_V_STD = 30.0
+
+GREEN_ZONE_MIN = (35, 70, 50)
+GREEN_ZONE_MAX = (85, 255, 255)
+RED_ZONE_LOW_MIN = (0, 80, 50)
+RED_ZONE_LOW_MAX = (10, 255, 255)
+RED_ZONE_HIGH_MIN = (170, 80, 50)
+RED_ZONE_HIGH_MAX = (180, 255, 255)
+ZONE_MIN_AREA_RATIO = 0.02
+
+SILVER_LINE_MAX_SATURATION = 70
+SILVER_LINE_BRIGHT_MARGIN = 30
+SILVER_LINE_MIN_AREA_RATIO = 0.01
+SILVER_LINE_MIN_ASPECT = 2.5
 
 # Thresholds para detectores de cor (HSV)
 LINE_MIN = (0, 0, 0)
@@ -83,6 +116,18 @@ OBSTACLE_DETECTION_ENABLED = True
 OBSTACLE_CONFIDENCE_THRESHOLD = 0.3  # 0.0 a 1.0
 OBSTACLE_MIN_AREA = 100  # Pixels mínimos para considerar um objeto
 OBSTACLE_PROXIMITY_THRESHOLD_CM = 25  # Distância estimada para reagir
+OBSTACLE_MAX_ASPECT = 2.5
+OBSTACLE_SOURCE_TTL = 0.25
+OBSTACLE_SOURCE_FLAGS = {
+    "vision": "obstacle_detected_vision",
+    "range": "obstacle_detected_range",
+}
+
+ULTRASONIC_MIN_VALID_CM = 2.0
+ULTRASONIC_MAX_VALID_CM = 400.0
+ULTRASONIC_MAX_JUMP_CM = 40.0
+ULTRASONIC_CONFIRM_READINGS = 2
+SENSOR_ENABLE_RETRY_INTERVAL = 3.0
 
 # ============================================================================
 # Configuração PID (Controle de Navegação)
@@ -154,6 +199,9 @@ class RobotContext:
     current_state: str = BOOT
     last_command: Optional[str] = None
     obstacle_detected: bool = False
+    obstacle_detected_vision: bool = False
+    obstacle_detected_range: bool = False
+    obstacle_distance: Optional[float] = None
     line_center: Optional[float] = None
     rescue_detected: bool = False
     safe_zone_detected: bool = False
@@ -167,7 +215,7 @@ class RobotContext:
     _event_timestamps: Dict[str, float] = field(default_factory=dict)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in {"obstacle_detected", "rescue_detected", "safe_zone_detected", "ball_detected"} and isinstance(value, bool):
+        if name in {"obstacle_detected", "obstacle_detected_vision", "obstacle_detected_range", "rescue_detected", "safe_zone_detected", "ball_detected"} and isinstance(value, bool):
             temporal_flags = getattr(self, "_temporal_flags", None)
             if temporal_flags is None:
                 object.__setattr__(self, name, value)
@@ -201,6 +249,15 @@ class RobotContext:
         if timestamp is None:
             return False
         return (current_time - timestamp) <= ttl
+
+    def set_obstacle_source(self, source: str, value: bool, *, now: Optional[float] = None) -> None:
+        flag = OBSTACLE_SOURCE_FLAGS[source]
+        self.set_temporal_flag(flag, value, now=now)
+        aggregate = any(
+            self.has_recent_temporal_flag(name, OBSTACLE_SOURCE_TTL, now=now)
+            for name in OBSTACLE_SOURCE_FLAGS.values()
+        )
+        self.set_temporal_flag("obstacle_detected", aggregate, now=now)
 
     def set_last_event(self, event: Optional[str], *, now: Optional[float] = None) -> None:
         current_time = time.monotonic() if now is None else now

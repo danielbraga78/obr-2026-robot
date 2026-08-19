@@ -10,7 +10,21 @@ if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from raspberry.camera import CameraManager
-from raspberry.config import CAMERA_BACKEND, SERIAL_BAUDRATE, SERIAL_MODE, SERIAL_PORT, SERIAL_RECONNECT_DELAY, SERIAL_TIMEOUT, SENSORS_ENABLED, RobotContext
+from raspberry.config import (
+    CAMERA_BACKEND,
+    OBSTACLE_CONFIDENCE_THRESHOLD,
+    OBSTACLE_DETECTION_ENABLED,
+    OBSTACLE_MIN_AREA,
+    OBSTACLE_PROXIMITY_THRESHOLD_CM,
+    SERIAL_BAUDRATE,
+    SERIAL_MODE,
+    SERIAL_PORT,
+    SERIAL_RECONNECT_DELAY,
+    SERIAL_TIMEOUT,
+    SENSOR_ENABLE_RETRY_INTERVAL,
+    SENSORS_ENABLED,
+    RobotContext,
+)
 from raspberry.serial_manager import SerialManager
 from raspberry.preview import PreviewWindow
 from raspberry.state_machine import RobotStateMachine
@@ -30,9 +44,11 @@ from raspberry.states.search_line import SearchLineState
 from raspberry.states.search_safe_zone import SearchSafeZoneState
 from raspberry.vision.ball_detector import BallDetector
 from raspberry.vision.line_detector import LineDetector
+from raspberry.vision.obstacle_detector import VisionBasedObstacleDetector
 from raspberry.vision.pipeline import VisionPipeline
 from raspberry.vision.rescue_detector import RescueDetector
 from raspberry.vision.safe_zone_detector import SafeZoneDetector
+from raspberry.ultrasonic import UltrasonicMonitor
 from competition.integration import CompetitionRuntimeAdapter
 
 # ROBOT_LOG_LEVEL=DEBUG mostra, entre outras coisas, cada linha vinda do Arduino.
@@ -40,22 +56,53 @@ logging.basicConfig(level=os.environ.get("ROBOT_LOG_LEVEL", "INFO").upper(), for
 logger = logging.getLogger(__name__)
 
 
+def update_context_from_serial_message(context, message: str) -> None:
+    if message == "OBSTACLE":
+        context.set_temporal_flag("obstacle_detected", True)
+        return
+    if message.startswith("DIST,"):
+        try:
+            distance_cm = float(message.split(",", 1)[1])
+        except ValueError:
+            return
+        context.obstacle_distance = distance_cm
+        context.set_temporal_flag(
+            "obstacle_detected",
+            distance_cm > 0 and distance_cm <= OBSTACLE_PROXIMITY_THRESHOLD_CM,
+        )
+
+
+def build_vision_detectors() -> dict:
+    detectors = {
+        "line": LineDetector(),
+        "ball": BallDetector(),
+        "rescue": RescueDetector(),
+        "safe_zone": SafeZoneDetector(),
+    }
+    if OBSTACLE_DETECTION_ENABLED and SENSORS_ENABLED.get("vision_obstacle_detection", True):
+        detectors["obstacle"] = VisionBasedObstacleDetector(
+            confidence_threshold=OBSTACLE_CONFIDENCE_THRESHOLD,
+            min_obstacle_area=OBSTACLE_MIN_AREA,
+        )
+    return detectors
+
+
 class RobotApp:
     def __init__(self) -> None:
         self.camera = CameraManager(backend=CAMERA_BACKEND)
         self.serial = SerialManager(mode=SERIAL_MODE, port=SERIAL_PORT, baudrate=SERIAL_BAUDRATE, timeout=SERIAL_TIMEOUT, reconnect_delay=SERIAL_RECONNECT_DELAY)
         self.serial.connect()
+        self.ultrasonic = UltrasonicMonitor() if SENSORS_ENABLED.get("ultrasonic", False) else None
+        self._sensor_arm_sent_at = None
+        self._last_distance_at = None
+        if SENSORS_ENABLED.get("ultrasonic", False):
+            self.serial.send_command("SENSOR,ULTRASONIC,ON")
         self.context = RobotContext()
         self.context.camera_ready = self.camera.is_ready()
         self.context.serial_ready = self.serial.is_connected()
         self.strategy = Strategy()
         self.competition_adapter = CompetitionRuntimeAdapter()
-        self.detectors = {
-            "line": LineDetector(),
-            "ball": BallDetector(),
-            "rescue": RescueDetector(),
-            "safe_zone": SafeZoneDetector(),
-        }
+        self.detectors = build_vision_detectors()
         self.vision_pipeline = VisionPipeline(detectors=self.detectors)
         self.machine = RobotStateMachine({
             "BOOT": CalibrationState(),
@@ -75,6 +122,10 @@ class RobotApp:
         self.result_queue: queue.Queue = queue.Queue(maxsize=2)
         self._stop_event = threading.Event()
         self.last_frame = None
+        self.last_frame_at = None
+        self._last_vision_result_at = None
+        self._last_command_sent_at = None
+        self._now = time.monotonic
         # Lock para evitar race conditions entre vision_thread e main loop
         self._frame_lock = threading.Lock()
         self._last_telemetry_log = 0.0
@@ -90,37 +141,7 @@ class RobotApp:
         while not self._stop_event.is_set():
             cycle_start = self.loop_controller.begin_cycle()
             try:
-                self.context.camera_ready = self.camera.is_ready()
-                self.context.serial_ready = self.serial.is_connected()
-                self._process_messages()
-                try:
-                    result = self.result_queue.get_nowait()
-                except queue.Empty:
-                    result = None
-                with self._frame_lock:
-                    current_frame = self.last_frame
-                if result is not None and self.loop_controller.is_result_stale(result.captured_at):
-                    logger.debug("Resultado visual descartado por idade (%.0f ms)", (time.monotonic() - result.captured_at) * 1000.0)
-                    result = None
-                if result is not None:
-                    self._update_context_from_result(result)
-                    # A máquina é a fonte única de verdade; o contexto a espelha.
-                    self.context.current_state = self.machine.current_state
-                    decision = self.strategy.evaluate(self.context)
-                    if decision.next_state:
-                        # Transição reativa: obstáculo, resgate, bola.
-                        self.machine.transition_to(decision.next_state)
-                        self.context.current_state = self.machine.current_state
-                    state_result = self.machine.run_once(self.context, current_frame, self.detectors)
-                    if state_result.command:
-                        self._log_telemetry(state_result.command)
-                        self.serial.send_command(state_result.command)
-                        self.context.last_command = state_result.command
-
-                    competition_command = self.competition_adapter.build_command(self.context, self.machine.current_state)
-                    if competition_command and not state_result.command:
-                        self.serial.send_command(competition_command)
-                        self.context.last_command = competition_command
+                self._process_cycle()
                 mask = getattr(self.detectors["line"], "last_mask", None) if self.preview.show_mask else None
                 self.preview.render(current_frame, self.context, self.context.last_command, self._preview_stats(), mask)
                 if self.preview.quit_requested:
@@ -145,6 +166,7 @@ class RobotApp:
                 self._track_vision_fps(captured_at)
                 with self._frame_lock:
                     self.last_frame = frame
+                    self.last_frame_at = captured_at
                 try:
                     self.frame_queue.put_nowait(frame)
                 except queue.Full:
@@ -188,7 +210,7 @@ class RobotApp:
         """
         summary = format_arduino_payload(self.context, command)
         logger.debug("Visão detectada -> Arduino: %s", summary)
-        now = time.monotonic()
+        now = self._now()
         if now - self._last_telemetry_log >= 1.0:
             self._last_telemetry_log = now
             logger.info("Visão detectada -> Arduino: %s", summary)
@@ -202,25 +224,128 @@ class RobotApp:
         }
         self.context.rescue_detected = bool(detections.get("rescue"))
         self.context.safe_zone_detected = bool(detections.get("safe_zone"))
+        obstacle_detection = detections.get("obstacle")
+        if obstacle_detection is not None:
+            self.context.set_temporal_flag(
+                "obstacle_detected",
+                bool(getattr(obstacle_detection, "obstacle_detected", False)),
+            )
         ball = detections.get("ball")
         self.context.ball_detected = ball is not None
         if ball is not None:
             self.context.ball_distance = getattr(ball, "distance", None)
+        self.context.expire_temporal_signals()
+
+    def _process_cycle(self) -> None:
+        self.context.camera_ready = self.camera.is_ready()
+        self.context.serial_ready = self.serial.is_connected()
+        self._process_messages()
+        self._ensure_sensors_armed()
+        try:
+            result = self.result_queue.get_nowait()
+        except queue.Empty:
+            result = None
+        with self._frame_lock:
+            current_frame = self.last_frame
+        if result is not None and self.loop_controller.is_result_stale(result.captured_at):
+            result = None
+        if result is not None:
+            self._update_context_from_result(result)
+            self._last_vision_result_at = self._now()
+        elif self._is_vision_context_stale():
+            self._clear_vision_context()
+
+        self.context.current_state = self.machine.current_state
+        decision = self.strategy.evaluate(self.context)
+        state_result = self.machine.run_once(
+            self.context,
+            current_frame,
+            self.detectors,
+            strategy_next_state=decision.next_state,
+        )
+        self.context.current_state = self.machine.current_state
+        command = self._resolve_command(state_result)
+        if command:
+            self._log_telemetry(command)
+            self.serial.send_command(command)
+            self.context.last_command = command
+            self._last_command_sent_at = self._now()
+        competition_adapter = getattr(self, "competition_adapter", None)
+        competition_command = (
+            competition_adapter.build_command(self.context, self.machine.current_state)
+            if competition_adapter is not None
+            else None
+        )
+        if competition_command and not state_result.command and command == "STOP":
+            self.serial.send_command(competition_command)
+            self.context.last_command = competition_command
+        self.context.expire_temporal_signals()
+
+    def _resolve_command(self, state_result) -> str:
+        if state_result is not None and state_result.command:
+            return state_result.command
+        if self.context.last_command and self._is_last_command_valid():
+            return self.context.last_command
+        return "STOP"
+
+    def _is_last_command_valid(self) -> bool:
+        if self._last_command_sent_at is None:
+            return False
+        return (self._now() - self._last_command_sent_at) <= max(
+            self.loop_controller.max_frame_age * 2.0, 0.5
+        )
+
+    def _is_vision_context_stale(self) -> bool:
+        if self._last_vision_result_at is None:
+            return False
+        return self._now() - self._last_vision_result_at > self.loop_controller.max_frame_age
+
+    def _clear_vision_context(self) -> None:
+        self.context.last_detections = {}
+        self.context.rescue_detected = False
+        self.context.safe_zone_detected = False
+        self.context.ball_detected = False
+        self.context.ball_distance = None
 
     def _process_messages(self) -> None:
         messages = self.serial.read_messages()
         for message in messages:
-            if message == "OBSTACLE":
-                self.context.obstacle_detected = True
-            elif message == "BALL_CAPTURED":
-                self.context.last_event = "BALL_CAPTURED"
-            elif message == "BALL_DROPPED":
-                self.context.last_event = "BALL_DROPPED"
+            if message == "READY":
+                if self.ultrasonic is not None:
+                    self.ultrasonic.reset()
+                self._sensor_arm_sent_at = None
+                self._ensure_sensors_armed()
             elif message.startswith("DIST,"):
                 try:
-                    self.context.ball_distance = float(message.split(",", 1)[1])
+                    distance_cm = float(message.split(",", 1)[1])
                 except ValueError:
-                    pass
+                    continue
+                self._last_distance_at = self._now()
+                if self.ultrasonic is not None:
+                    self.ultrasonic.update(self.context, distance_cm)
+                else:
+                    update_context_from_serial_message(self.context, message)
+            else:
+                update_context_from_serial_message(self.context, message)
+            if message == "BALL_CAPTURED":
+                self.context.set_last_event("BALL_CAPTURED")
+            elif message == "BALL_DROPPED":
+                self.context.set_last_event("BALL_DROPPED")
+            elif message == "WATCHDOG":
+                self.context.set_last_event("WATCHDOG")
+                self.context.serial_ready = False
+                self.serial.send_command("STOP")
+
+    def _ensure_sensors_armed(self) -> None:
+        ultrasonic = getattr(self, "ultrasonic", None)
+        if ultrasonic is None or not self.serial.is_connected():
+            return
+        now = self._now()
+        if self._last_distance_at is not None and now - self._last_distance_at <= SENSOR_ENABLE_RETRY_INTERVAL:
+            return
+        if self._sensor_arm_sent_at is None or now - self._sensor_arm_sent_at >= SENSOR_ENABLE_RETRY_INTERVAL:
+            self.serial.send_command("SENSOR,ULTRASONIC,ON")
+            self._sensor_arm_sent_at = now
 
     def stop(self) -> None:
         """Encerra o robô de forma limpa."""
