@@ -31,7 +31,7 @@ constexpr unsigned long kUltrasonicTimeoutUs = 23000;  // Timeout para ~4m
 constexpr unsigned long kWatchdogTimeoutMs = 1000;
 constexpr unsigned long kSerialBaudrate = 115200;
 constexpr int kMaxMotorSpeed = 255;
-constexpr int kMinMotorSpeed = 30;
+constexpr int kMinMotorSpeed = 120;
 constexpr int kServoOpenAngle = 20;
 constexpr int kServoClosedAngle = 110;
 
@@ -114,6 +114,9 @@ void setMotorSpeed(uint8_t motorIndex, int speed) {
   }
 
   speed = constrain(speed, -kMaxMotorSpeed, kMaxMotorSpeed);
+  if (speed != 0 && abs(speed) < kMinMotorSpeed) {
+    speed = speed > 0 ? kMinMotorSpeed : -kMinMotorSpeed;
+  }
   const bool reverse = speed < 0;
   const uint8_t pwmValue = static_cast<uint8_t>(abs(speed));
 

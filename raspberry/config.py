@@ -144,8 +144,8 @@ LINE_LOST_GRACE_CYCLES = 1  # Leitura inválida tolerada antes de parar
 
 # Velocidades em unidades de PWM (o Arduino usa 0-255 direto no analogWrite).
 # Abaixo de ~60 os motores não vencem o atrito com carga.
-BASE_SPEED = 110  # Velocidade em reta
-MIN_SPEED = 70  # Velocidade nas curvas fechadas
+BASE_SPEED = 180  # Velocidade em reta
+MIN_SPEED = 130  # Velocidade mínima com motores ativos
 STEER_SIGN = 1.0  # Use -1.0 se o robô virar para o lado errado
 
 # ============================================================================
