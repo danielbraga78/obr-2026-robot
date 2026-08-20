@@ -17,6 +17,12 @@ def scene(background: int, line_value: int, line_x: int = 160, line_width: int =
     return frame
 
 
+def path_scene(points, line_width: int = 120, background: int = 230, line_value: int = 30):
+    frame = np.full((240, 320, 3), background, dtype=np.uint8)
+    cv2.polylines(frame, [np.array(points, dtype=np.int32)], False, (line_value,) * 3, line_width)
+    return frame
+
+
 class AdaptiveLineDetectorTests(unittest.TestCase):
     def test_detects_line_too_claro_para_o_limiar_hsv_fixo(self):
         """Linha com V=120: acima do LINE_MAX fixo (V<=80), que a rejeitava."""
@@ -69,6 +75,20 @@ class AdaptiveLineDetectorTests(unittest.TestCase):
 
         self.assertIsNone(detection.error)
         self.assertIn("cobre", detection.reason)
+
+    def test_wide_cross_is_not_rejected_as_full_frame(self):
+        frame = path_scene([(160, 240), (160, 120), (320, 120)])
+
+        detection = LineDetector(mode="adaptive").detect(frame)
+
+        self.assertIsNotNone(detection.error, f"cruz rejeitada: {detection.reason}")
+
+    def test_wide_ninety_degree_curve_is_not_rejected(self):
+        frame = path_scene([(160, 240), (160, 120), (280, 120)], line_width=90)
+
+        detection = LineDetector(mode="adaptive").detect(frame)
+
+        self.assertIsNotNone(detection.error, f"curva rejeitada: {detection.reason}")
 
     def test_mask_is_exposed_for_the_preview(self):
         detector = LineDetector(mode="adaptive")

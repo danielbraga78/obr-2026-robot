@@ -5,24 +5,19 @@ cd "$(dirname "$0")"
 
 source .venv/bin/activate
 
-echo "Testando câmera com OpenCV..."
+echo "Testando câmera..."
 python - <<'PY'
-import cv2
 import sys
 
-for index in range(0, 5):
-    cap = cv2.VideoCapture(index)
-    if cap.isOpened():
-        print(f"Câmera encontrada no dispositivo {index}")
-        ret, frame = cap.read()
-        if ret and frame is not None:
-            print(f"Frame lido com sucesso: shape={frame.shape}")
-        else:
-            print(f"Falha ao ler frame do dispositivo {index}")
-        cap.release()
-        sys.exit(0)
-    cap.release()
+from raspberry.camera import CameraManager
 
-print("Nenhuma câmera foi detectada nos dispositivos 0..4")
-sys.exit(1)
+camera = CameraManager(backend="auto")
+try:
+    frame = camera.read_frame()
+    if frame is None:
+        print(f"Câmera abriu, mas não entregou frame: {camera.describe()}")
+        sys.exit(1)
+    print(f"Frame lido com sucesso: backend={camera.describe()} shape={frame.shape}")
+finally:
+    camera.release()
 PY

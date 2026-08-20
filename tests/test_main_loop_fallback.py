@@ -192,6 +192,19 @@ class MainLoopFallbackTests(unittest.TestCase):
         self.assertEqual(self.app.context.last_command, self.app.serial.commands[0])
         self.assertEqual(self.app._last_vision_result_at, 0.0)
 
+    def test_run_passes_latest_frame_to_preview(self):
+        frame = object()
+        rendered_frames = []
+        self.app.last_frame = frame
+        self.app.preview.render = lambda current_frame, *args: (
+            rendered_frames.append(current_frame), self.app._stop_event.set()
+        )
+        self.app.loop_controller.wait_for_next_cycle = lambda cycle_start: cycle_start
+
+        self.app.run()
+
+        self.assertEqual(rendered_frames, [frame])
+
     def test_temporary_absence_maintains_control(self):
         self.app.machine.current_state = "FOLLOW_LINE"
         self.app.context.current_state = "FOLLOW_LINE"

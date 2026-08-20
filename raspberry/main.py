@@ -142,6 +142,8 @@ class RobotApp:
             cycle_start = self.loop_controller.begin_cycle()
             try:
                 self._process_cycle()
+                with self._frame_lock:
+                    current_frame = self.last_frame
                 mask = getattr(self.detectors["line"], "last_mask", None) if self.preview.show_mask else None
                 self.preview.render(current_frame, self.context, self.context.last_command, self._preview_stats(), mask)
                 if self.preview.quit_requested:

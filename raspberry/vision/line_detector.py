@@ -54,8 +54,6 @@ class LineDetector:
             return LineDetection(frame_width=width, threshold=threshold, reason=reason)
 
         coverage = float(np.count_nonzero(mask)) / float(mask.size)
-        if coverage > LINE_MAX_COVERAGE:
-            return LineDetection(frame_width=width, threshold=threshold, coverage=coverage, reason=f"mascara cobre {coverage:.0%} do quadro")
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
@@ -63,6 +61,12 @@ class LineDetector:
 
         largest = max(contours, key=cv2.contourArea)
         area = cv2.contourArea(largest)
+        frame_area = float(mask.shape[0] * mask.shape[1])
+        contour_coverage = area / frame_area
+        hull_area = cv2.contourArea(cv2.convexHull(largest))
+        solidity = area / hull_area if hull_area > 0 else 1.0
+        if coverage > LINE_MAX_COVERAGE and contour_coverage > LINE_MAX_COVERAGE and solidity > 0.9:
+            return LineDetection(frame_width=width, threshold=threshold, coverage=coverage, reason=f"mascara cobre {coverage:.0%} do quadro")
         if area < LINE_MIN_AREA:
             return LineDetection(frame_width=width, threshold=threshold, coverage=coverage, reason=f"area {area:.0f} < {LINE_MIN_AREA}")
 

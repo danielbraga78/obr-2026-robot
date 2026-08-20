@@ -77,8 +77,28 @@ class FollowLineTests(unittest.TestCase):
         # Mesmo erro em pixels vale mais num quadro estreito.
         self.assertGreater(narrow_wz, wide_wz)
 
-    def test_lost_line_stops_and_searches(self):
-        result = run_state(LineDetection())
+    def test_temporary_lost_line_keeps_reduced_motion(self):
+        state = FollowLineState()
+        context = RobotContext()
+        context.last_detections = {"line": LineDetection(error=80.0, center_x=240.0, frame_width=320)}
+        state.execute(context, None, {})
+        context.last_detections = {"line": LineDetection()}
+
+        result = state.execute(context, None, {})
+
+        speed, _, steering = parse_move(result.command)
+        self.assertEqual(result.next_state, "FOLLOW_LINE")
+        self.assertLess(speed, BASE_SPEED)
+        self.assertGreater(steering, 0)
+
+    def test_lost_line_stops_after_grace_window(self):
+        state = FollowLineState()
+        context = RobotContext()
+        context.last_detections = {"line": LineDetection()}
+
+        state.execute(context, None, {})
+        result = state.execute(context, None, {})
+        result = state.execute(context, None, {})
 
         self.assertEqual(result.command, "STOP")
         self.assertEqual(result.next_state, "SEARCH_LINE")

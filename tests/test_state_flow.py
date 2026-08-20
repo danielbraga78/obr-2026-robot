@@ -111,6 +111,7 @@ class StateFlowTests(unittest.TestCase):
 
         robot.tick(NO_LINE)
         robot.tick(NO_LINE)
+        robot.tick(NO_LINE)
 
         self.assertIn("SEARCH_LINE", robot.executed_states)
 

@@ -139,6 +139,8 @@ PID_KP = 60.0
 PID_KI = 0.2
 PID_KD = 18.0
 MAX_STEER = 80  # Autoridade máxima de giro (PWM)
+LINE_ERROR_FILTER_ALPHA = 0.35  # Peso do erro novo; reduz oscilações frame a frame
+LINE_LOST_GRACE_CYCLES = 1  # Leitura inválida tolerada antes de parar
 
 # Velocidades em unidades de PWM (o Arduino usa 0-255 direto no analogWrite).
 # Abaixo de ~60 os motores não vencem o atrito com carga.
