@@ -260,7 +260,7 @@ O firmware do Arduino usa os pinos A2 e A3 para o sensor ultrassônico.
 
 ## 8. Ligação do servo da garra
 
-O firmware usa o pino D2 para o servo da garra.
+O firmware atual usa o pino D44 para o servo da garra.
 
 ### Pinagem típica do servo
 
@@ -280,7 +280,7 @@ O firmware usa o pino D2 para o servo da garra.
 
 1. Conectar VCC ao 5 V do Arduino.
 2. Conectar GND ao GND do Arduino.
-3. Conectar o fio de sinal ao pino D2.
+3. Conectar o fio de sinal ao pino D44.
 
 ---
 

@@ -3,11 +3,13 @@ from __future__ import annotations
 import time
 from typing import Callable, Optional
 
+from .config import CONTROL_LOOP_HZ, MAX_FRAME_AGE
+
 
 class ExecutionLoopController:
     """Controla a taxa principal do ciclo de execução e mede latência."""
 
-    def __init__(self, target_hz: float = 20.0, max_frame_age: float = 0.25, now_fn: Optional[Callable[[], float]] = None) -> None:
+    def __init__(self, target_hz: float = CONTROL_LOOP_HZ, max_frame_age: float = MAX_FRAME_AGE, now_fn: Optional[Callable[[], float]] = None) -> None:
         self.target_hz = max(target_hz, 1.0)
         self.period_seconds = 1.0 / self.target_hz
         self.max_frame_age = max_frame_age

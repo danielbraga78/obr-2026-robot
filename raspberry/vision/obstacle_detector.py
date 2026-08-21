@@ -20,7 +20,14 @@ import numpy as np
 from typing import Optional
 from dataclasses import dataclass
 
-from ..config import OBSTACLE_MAX_ASPECT
+from ..config import (
+    OBSTACLE_DARK_THRESHOLD,
+    OBSTACLE_DISTANCE_AREA_THRESHOLDS,
+    OBSTACLE_DISTANCE_ESTIMATES_CM,
+    OBSTACLE_MAX_AREA_RATIO,
+    OBSTACLE_MAX_ASPECT,
+    OBSTACLE_ROI,
+)
 from ..sensor_interface import (
     ObstacleDetector,
     ObstacleDetectionResult,
@@ -165,15 +172,15 @@ class VisionBasedObstacleDetector(ObstacleDetector):
         height, width = frame.shape[:2]
         
         # ROI: centro inferior da imagem (onde seria um obstáculo frontal)
-        roi_top = int(height * 0.3)
-        roi_bottom = height
-        roi_left = int(width * 0.2)
-        roi_right = int(width * 0.8)
+        roi_left = int(width * OBSTACLE_ROI[0])
+        roi_top = int(height * OBSTACLE_ROI[1])
+        roi_right = int(width * OBSTACLE_ROI[2])
+        roi_bottom = int(height * OBSTACLE_ROI[3])
         
         roi_v = v[roi_top:roi_bottom, roi_left:roi_right]
         
         # Threshold para detectar áreas escuras
-        _, dark_mask = cv2.threshold(roi_v, 80, 255, cv2.THRESH_BINARY_INV)
+        _, dark_mask = cv2.threshold(roi_v, OBSTACLE_DARK_THRESHOLD, 255, cv2.THRESH_BINARY_INV)
         
         # Encontrar contornos
         contours, _ = cv2.findContours(dark_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -184,7 +191,7 @@ class VisionBasedObstacleDetector(ObstacleDetector):
         for contour in contours:
             area = cv2.contourArea(contour)
             area_ratio = area / roi_area if roi_area else 0.0
-            if area >= self.min_obstacle_area and area_ratio < 0.5:
+            if area >= self.min_obstacle_area and area_ratio < OBSTACLE_MAX_AREA_RATIO:
                 # A linha preta é escura, grande e logo à frente: passava por
                 # obstáculo em todo quadro do seguidor de linha. O que a denuncia
                 # é a forma — um obstáculo é compacto, a linha é alongada.
@@ -210,14 +217,16 @@ class VisionBasedObstacleDetector(ObstacleDetector):
             normalized_area = primary['area'] / (width * height)
             
             # Estimar distância (0-100cm, onde 100cm = muito distante)
-            if normalized_area > 0.1:
-                estimated_distance = 20  # Muito próximo
-            elif normalized_area > 0.05:
-                estimated_distance = 35
-            elif normalized_area > 0.02:
-                estimated_distance = 50
+            near_threshold, medium_threshold, far_threshold = OBSTACLE_DISTANCE_AREA_THRESHOLDS
+            near_distance, medium_distance, far_distance, distant_distance = OBSTACLE_DISTANCE_ESTIMATES_CM
+            if normalized_area > near_threshold:
+                estimated_distance = near_distance  # Muito próximo
+            elif normalized_area > medium_threshold:
+                estimated_distance = medium_distance
+            elif normalized_area > far_threshold:
+                estimated_distance = far_distance
             else:
-                estimated_distance = 75
+                estimated_distance = distant_distance
             
             # Calcular confiança
             # Maior confiança se há vários obstáculos ou um grande

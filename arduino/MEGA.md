@@ -60,21 +60,21 @@ usar um divisor de tensão ou conversor de nível (para evitar danificar o Pi).
 
 ## Compilar e fazer upload
 
-1. Abra o `arduino/robot_mega.ino` (arquivo disponibilizado neste repositório).
+1. Abra o `arduino/firmware/robot_mega/robot_mega.ino`.
 2. No Arduino IDE ou `arduino-cli`, selecione a placa `Arduino Mega or Mega 2560`.
 3. Compile e faça upload.
 
 Exemplo com `arduino-cli`:
 
 ```bash
-arduino-cli compile --fqbn arduino:avr:mega:cpu=atmega2560 arduino/robot_mega.ino
-arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:avr:mega:cpu=atmega2560 arduino/robot_mega.ino
+arduino-cli compile --fqbn arduino:avr:mega:cpu=atmega2560 arduino/firmware/robot_mega
+arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:avr:mega:cpu=atmega2560 arduino/firmware/robot_mega
 ```
 
 ## Testes pós-upload (recomendado)
 
 1. Verifique se `READY` aparece na serial ao inicializar.
-2. Teste individualmente cada motor com os comandos de teste (ex.: `MOVE,10,0,0`).
+2. Teste individualmente cada motor com os comandos de teste (ex.: `MOVE,110,0,0`).
 3. Confirme que `STBY` está HIGH para habilitar os drivers.
 
 ## Observações finais

@@ -11,19 +11,19 @@ Este projeto reúne um software modular para operar um robô de competição da 
 - **compatibilidade**: suporta USB e UART para comunicação com Arduino;
 - **extensibilidade**: arquitetura pronta para adicionar sensores futuros sem alterar código existente.
 
-**Ponto-chave:** O robô funciona **integralmente com visão computacional** como sensor de percepção. Sensores de distância (ultrassônico, ToF, LiDAR) são **opcionais** e não bloqueiam a operação.
+**Ponto-chave:** O robô usa visão computacional e sensor ultrassônico integrado como fontes de percepção. ToF e LiDAR são opcionais e não bloqueiam a operação.
 
 ### Hardware Atualmente Disponível
 
 - Raspberry Pi 5 (4 GB)
-- Arduino (Uno ou Nano)
+- Arduino Mega 2560
 - Câmera (USB ou CSI) - **único sensor obrigatório**
 - 4 motores omnidirecionais
-- Driver de motores
+- 2 drivers TB6612FNG
 - Servo da garra
 - Comunicação serial (USB ou UART)
 
-**Nota:** Não há sensor ultrassônico, ToF, LiDAR ou qualquer outro sensor de distância instalado atualmente. O projeto foi completamente adaptado para funcionar apenas com visão computacional.
+**Nota:** O sensor ultrassônico HC-SR04 está instalado e habilitado no firmware atual. ToF e LiDAR não estão instalados.
 
 Pinagem atual do firmware Mega: D2/D22/D23 para o Motor 4, D3/D24/D25 para o Motor 2, D4/D26/D27 para o Motor 3, D5/D28/D29 para o Motor 1, D44 para o servo e A2/A3 para o ultrassônico.
 
@@ -81,7 +81,7 @@ flowchart TD
     D --> E["🎯 Strategy"]
     E --> F["🔄 State Machine"]
     F --> G["📡 Serial Transport"]
-    G --> H["🤖 Arduino Uno/Nano"]
+    G --> H["🤖 Arduino Mega 2560"]
     
     H --> I1["⚙️ Motor 1-4"]
     H --> I2["✋ Servo Garra"]
@@ -141,7 +141,7 @@ O firmware está concentrado em um único arquivo otimizado:
 
 - [arduino/robot.ino](arduino/robot.ino) (~250 linhas)
 
-- Versão para Mega: [arduino/robot_mega.ino](arduino/robot_mega.ino) e guia em [arduino/MEGA.md](arduino/MEGA.md).
+- Firmware Mega: [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino) e guia em [arduino/MEGA.md](arduino/MEGA.md).
 
 Ele mantém a lógica bem estruturada:
 
@@ -303,11 +303,11 @@ Converte a decisão do comportamento em comando de movimento ou ação para o Ar
 ### Hardware (Atualmente Instalado)
 
 - **Raspberry Pi 5** com 4 GB de RAM (Pi 4 compatível, Pi 3B+ tolerável);
-- **Arduino** Uno ou Nano (compatível com serial USB/UART);
+- **Arduino Mega 2560** (compatível com serial USB/UART);
 - **Câmera** USB genérica ou CSI do Raspberry Pi;
 - **4 Motores DC** (3-6V) com redução para omnidirecional;
 - **4 Rodas Omnidirecionais** (mecanum ou suecas);
-- **Driver de Motores** L298N ou equivalente;
+- **Driver de Motores** 2x TB6612FNG;
 - **Servo SG90** para controle da garra;
 - **Fonte de Alimentação** estável (5V/3A mínimo para Raspberry + Arduino + servo);
 
@@ -524,6 +524,8 @@ O Arduino responde com confirmação imediata.
 | Comando | Descrição | Exemplo |
 |---|---|---|
 | `STOP` | para o robô | `STOP\n` |
+| `EMERGENCY STOP` | para e mantém o robô bloqueado | `EMERGENCY STOP\n` |
+| `EMERGENCY RELEASE` | libera o bloqueio de emergência; não move | `EMERGENCY RELEASE\n` |
 | `MOVE,vx,vy,wz` | movimento omnidirecional | `MOVE,50,-30,10\n` |
 | `GRAB` | fecha a garra | `GRAB\n` |
 | `RELEASE` | abre a garra | `RELEASE\n` |
@@ -538,6 +540,8 @@ O Arduino responde com confirmação imediata.
 | `OK` | comando aceito e executado | sempre |
 | `BALL_CAPTURED` | garra fechou com sucesso | após `GRAB` |
 | `BALL_DROPPED` | garra abriu com sucesso | após `RELEASE` |
+| `EMERGENCY_LOCKED` | movimento rejeitado durante emergência | após emergência ou `MOVE` bloqueado |
+| `EMERGENCY_RELEASED` | bloqueio de emergência removido | após `EMERGENCY RELEASE` |
 | `PONG` | resposta ao ping | após `PING` |
 | `WATCHDOG` | timeout de comando (>1s) | quando inativo |
 | `READY` | Arduino inicializado | ao ligar |

@@ -257,13 +257,32 @@ void handleCommand(const String& rawCommand) {
   command.trim();
   command.toUpperCase();
 
-  if (command == "STOP" || command == "EMERGENCY STOP" || command == "EMERGENCY_STOP") {
+  if (command == "EMERGENCY STOP" || command == "EMERGENCY_STOP") {
+    g_safetyStopActive = true;
+    stopMotion();
+    Serial.println("EMERGENCY_LOCKED");
+    return;
+  }
+
+  if (command == "EMERGENCY RELEASE" || command == "EMERGENCY_RELEASE") {
+    g_safetyStopActive = false;
+    stopMotion();
+    Serial.println("EMERGENCY_RELEASED");
+    return;
+  }
+
+  if (command == "STOP") {
     stopMotion();
     Serial.println("OK");
     return;
   }
 
   if (command.startsWith("MOVE,")) {
+    if (g_safetyStopActive) {
+      stopMotion();
+      Serial.println("EMERGENCY_LOCKED");
+      return;
+    }
     const int firstComma = command.indexOf(',');
     const int secondComma = command.indexOf(',', firstComma + 1);
     const int thirdComma = command.indexOf(',', secondComma + 1);

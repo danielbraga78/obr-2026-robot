@@ -12,6 +12,8 @@ if __package__ is None or __package__ == "":
 from raspberry.camera import CameraManager
 from raspberry.config import (
     CAMERA_BACKEND,
+    CONTROL_LOOP_HZ,
+    MAX_FRAME_AGE,
     OBSTACLE_CONFIDENCE_THRESHOLD,
     OBSTACLE_DETECTION_ENABLED,
     OBSTACLE_MIN_AREA,
@@ -134,7 +136,10 @@ class RobotApp:
         self._last_capture_at = None
         self.preview = PreviewWindow()
         logger.info("Câmera: %s | %s", self.camera.describe(), self.preview.describe_status())
-        self.loop_controller = ExecutionLoopController(target_hz=20.0)
+        self.loop_controller = ExecutionLoopController(
+            target_hz=CONTROL_LOOP_HZ,
+            max_frame_age=MAX_FRAME_AGE,
+        )
         self._vision_thread = threading.Thread(target=self._vision_loop, daemon=True)
         self._vision_thread.start()
 

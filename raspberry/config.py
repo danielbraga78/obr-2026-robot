@@ -59,7 +59,8 @@ VISION_PROCESS_HEIGHT = 240
 # quadro: é a parte da pista logo à frente do robô. Usar o quadro inteiro mistura
 # a linha próxima com curvas distantes e distorce o erro do PID.
 VISION_ROI = (0.0, 0.55, 1.0, 1.0)
-VISION_FRAME_TIMEOUT = 0.2
+MAX_FRAME_AGE = 0.25
+VISION_FRAME_TIMEOUT = MAX_FRAME_AGE  # Compatibilidade com integrações existentes
 VISION_ROI_PROFILES = {
     "near": (0.0, 0.55, 1.0, 1.0),
     "full": (0.0, 0.0, 1.0, 1.0),
@@ -116,6 +117,11 @@ SAFE_ZONE_MAX = (70, 255, 255)
 OBSTACLE_DETECTION_ENABLED = True
 OBSTACLE_CONFIDENCE_THRESHOLD = 0.3  # 0.0 a 1.0
 OBSTACLE_MIN_AREA = 100  # Pixels mínimos para considerar um objeto
+OBSTACLE_DARK_THRESHOLD = 80
+OBSTACLE_MAX_AREA_RATIO = 0.5
+OBSTACLE_ROI = (0.2, 0.3, 0.8, 1.0)
+OBSTACLE_DISTANCE_AREA_THRESHOLDS = (0.1, 0.05, 0.02)
+OBSTACLE_DISTANCE_ESTIMATES_CM = (20, 35, 50, 75)
 OBSTACLE_PROXIMITY_THRESHOLD_CM = 25  # Distância estimada para reagir
 OBSTACLE_MAX_ASPECT = 2.5
 OBSTACLE_SOURCE_TTL = 0.25
@@ -139,6 +145,8 @@ SENSOR_ENABLE_RETRY_INTERVAL = 3.0
 PID_KP = 60.0
 PID_KI = 0.2
 PID_KD = 18.0
+PID_INTEGRAL_LIMIT = 100.0
+PID_DERIVATIVE_FILTER_ALPHA = 0.0
 MAX_STEER = 80  # Autoridade máxima de giro (PWM)
 LINE_ERROR_FILTER_ALPHA = 0.35  # Peso do erro novo; reduz oscilações frame a frame
 LINE_LOST_GRACE_CYCLES = 1  # Leitura inválida tolerada antes de parar
@@ -148,6 +156,12 @@ LINE_LOST_GRACE_CYCLES = 1  # Leitura inválida tolerada antes de parar
 BASE_SPEED = 180  # Velocidade em reta
 MIN_MOTOR_SPEED = 110  # Mínimo configurável; o firmware aplica o mesmo limite
 MIN_SPEED = MIN_MOTOR_SPEED  # Compatibilidade com estados e integrações existentes
+SEARCH_LINE_SPEED = 110
+SEARCH_BALL_SPEED = 110
+SEARCH_SAFE_ZONE_SPEED = 110
+ALIGNMENT_SPEED = 110
+ALIGNMENT_TOLERANCE = 0.15
+CONTROL_LOOP_HZ = 20.0
 CURVE_CORRECTION = 1.0  # Multiplicador da autoridade de curva (wz)
 STEER_SIGN = 1.0  # Use -1.0 se o robô virar para o lado errado
 
