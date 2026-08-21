@@ -13,6 +13,7 @@ from .config import (
     CAMERA_BACKEND,
     CAMERA_BACKEND_PREFERENCE,
     CAMERA_DIAGNOSTIC_INTERVAL,
+    CAMERA_INVERTED,
     CAMERA_FPS,
     CAMERA_HEIGHT,
     CAMERA_MAX_RECONNECT_DELAY,
@@ -23,6 +24,13 @@ from .config import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def apply_camera_orientation(frame: np.ndarray) -> np.ndarray:
+    """Entrega o frame na orientação visual usada por toda a aplicação."""
+    if CAMERA_INVERTED:
+        return cv2.rotate(frame, cv2.ROTATE_180)
+    return frame
 
 # O OpenCV imprime avisos em C++ toda vez que um /dev/video* não abre. Numa
 # tentativa de reconexão periódica isso inunda o terminal e esconde os nossos
@@ -321,7 +329,7 @@ class CameraManager(CameraInterface):
             return None
 
         self._read_failures = 0
-        return frame
+        return apply_camera_orientation(frame)
 
     def _grab_frame(self) -> Optional[np.ndarray]:
         if self.picam is not None:

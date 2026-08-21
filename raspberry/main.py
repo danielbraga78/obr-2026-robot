@@ -30,6 +30,7 @@ from raspberry.preview import PreviewWindow
 from raspberry.state_machine import RobotStateMachine
 from raspberry.strategy import Strategy
 from raspberry.runtime import ExecutionLoopController
+from raspberry.motion import normalize_motor_command
 from raspberry.states.alignment import AlignBallState
 from raspberry.telemetry import format_arduino_payload
 from raspberry.states.avoid_obstacle import AvoidObstacleState
@@ -279,13 +280,14 @@ class RobotApp:
             else None
         )
         if competition_command and not state_result.command and command == "STOP":
+            competition_command = normalize_motor_command(competition_command)
             self.serial.send_command(competition_command)
             self.context.last_command = competition_command
         self.context.expire_temporal_signals()
 
     def _resolve_command(self, state_result) -> str:
         if state_result is not None and state_result.command:
-            return state_result.command
+            return normalize_motor_command(state_result.command)
         if self.context.last_command and self._is_last_command_valid():
             return self.context.last_command
         return "STOP"

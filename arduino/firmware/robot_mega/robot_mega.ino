@@ -31,7 +31,7 @@ constexpr unsigned long kUltrasonicTimeoutUs = 23000;  // Timeout para ~4m
 constexpr unsigned long kWatchdogTimeoutMs = 1000;
 constexpr unsigned long kSerialBaudrate = 115200;
 constexpr int kMaxMotorSpeed = 255;
-constexpr int kMinMotorSpeed = 120;
+constexpr int kMinMotorSpeed = 110;
 constexpr int kServoOpenAngle = 20;
 constexpr int kServoClosedAngle = 110;
 
@@ -257,7 +257,7 @@ void handleCommand(const String& rawCommand) {
   command.trim();
   command.toUpperCase();
 
-  if (command == "STOP") {
+  if (command == "STOP" || command == "EMERGENCY STOP" || command == "EMERGENCY_STOP") {
     stopMotion();
     Serial.println("OK");
     return;
