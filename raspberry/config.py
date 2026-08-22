@@ -162,7 +162,7 @@ SEARCH_SAFE_ZONE_SPEED = 110
 ALIGNMENT_SPEED = 110
 ALIGNMENT_TOLERANCE = 0.15
 CONTROL_LOOP_HZ = 20.0
-CURVE_CORRECTION = 1.0  # Multiplicador da autoridade de curva (wz)
+CURVE_CORRECTION = 1.25  # Multiplicador da autoridade de curva (wz)
 STEER_SIGN = 1.0  # Use -1.0 se o robô virar para o lado errado
 
 # ============================================================================
