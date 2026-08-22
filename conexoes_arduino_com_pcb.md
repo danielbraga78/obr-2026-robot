@@ -1,19 +1,24 @@
 # Ligações atuais — Arduino Mega + 2x TB6612FNG + sensores/servos
 
+> Conferido contra o netlist do Fritzing em 2026-08-22. As letras A e B das
+> pontes seguem a placa física; no arquivo do Fritzing elas aparecem trocadas.
+> Correção aplicada: o pino 1 do J7 é **D46**, não GND — é o segundo sinal do
+> HC-SR04, que estava faltando na documentação.
+
 ## 1. TB6612FNG — Ponte H A
 
 | Origem | Destino | Função |
 |---|---|---|
-| Arduino **D23** | TB6612 **A — PWMB** | PWM Motor B |
-| Arduino **D25** | TB6612 **A — BIN2** | Direção Motor B |
-| Arduino **D27** | TB6612 **A — BIN1** | Direção Motor B |
-| Arduino **D29** | TB6612 **A — AIN1** | Direção Motor A |
-| Arduino **D31** | TB6612 **A — AIN2** | Direção Motor A |
-| Arduino **D33** | TB6612 **A — PWMA** | PWM Motor A |
-| TB6612 **A — A01** | **J5 pino 2** | Motor 3 |
-| TB6612 **A — A02** | **J5 pino 1** | Motor 3 |
-| TB6612 **A — B01** | **J4 pino 1** | Motor 4 |
-| TB6612 **A — B02** | **J4 pino 2** | Motor 4 |
+| Arduino **D23** | TB6612 **A — PWMB** | PWM Motor 2 |
+| Arduino **D25** | TB6612 **A — BIN2** | Direção Motor 2 |
+| Arduino **D27** | TB6612 **A — BIN1** | Direção Motor 2 |
+| Arduino **D29** | TB6612 **A — AIN1** | Direção Motor 1 |
+| Arduino **D31** | TB6612 **A — AIN2** | Direção Motor 1 |
+| Arduino **D33** | TB6612 **A — PWMA** | PWM Motor 1 |
+| TB6612 **A — A01** | **J3 pino 2** | Motor 1 |
+| TB6612 **A — A02** | **J3 pino 1** | Motor 1 |
+| TB6612 **A — B01** | **J2 pino 1** | Motor 2 |
+| TB6612 **A — B02** | **J2 pino 2** | Motor 2 |
 | TB6612 **A — VM** | **J1 pino 2** | Alimentação dos motores |
 | TB6612 **A — VCC** | **J1 pino 2** | Alimentação lógica |
 | TB6612 **A — GND** | **J1 pino 1** | Terra |
@@ -23,16 +28,16 @@
 
 | Origem | Destino | Função |
 |---|---|---|
-| Arduino **D43** | TB6612 **B — PWMB** | PWM Motor B |
-| Arduino **D45** | TB6612 **B — BIN2** | Direção Motor B |
-| Arduino **D47** | TB6612 **B — BIN1** | Direção Motor B |
-| Arduino **D49** | TB6612 **B — AIN1** | Direção Motor A |
-| Arduino **D51** | TB6612 **B — AIN2** | Direção Motor A |
-| Arduino **D53** | TB6612 **B — PWMA** | PWM Motor A |
-| TB6612 **B — A01** | **J3 pino 2** | Motor 1 |
-| TB6612 **B — A02** | **J3 pino 1** | Motor 1 |
-| TB6612 **B — B01** | **J2 pino 1** | Motor 2 |
-| TB6612 **B — B02** | **J2 pino 2** | Motor 2 |
+| Arduino **D43** | TB6612 **B — PWMB** | PWM Motor 4 |
+| Arduino **D45** | TB6612 **B — BIN2** | Direção Motor 4 |
+| Arduino **D47** | TB6612 **B — BIN1** | Direção Motor 4 |
+| Arduino **D49** | TB6612 **B — AIN1** | Direção Motor 3 |
+| Arduino **D51** | TB6612 **B — AIN2** | Direção Motor 3 |
+| Arduino **D53** | TB6612 **B — PWMA** | PWM Motor 3 |
+| TB6612 **B — A01** | **J5 pino 2** | Motor 3 |
+| TB6612 **B — A02** | **J5 pino 1** | Motor 3 |
+| TB6612 **B — B01** | **J4 pino 1** | Motor 4 |
+| TB6612 **B — B02** | **J4 pino 2** | Motor 4 |
 | TB6612 **B — VM** | **J1 pino 2** | Alimentação dos motores |
 | TB6612 **B — VCC** | **J1 pino 2** | Alimentação lógica |
 | TB6612 **B — GND** | **J1 pino 1** | Terra |
@@ -63,22 +68,31 @@ Alimentação dos três servos:
 | **J7 pino 2** | J8 VCC |
 | **J7 pino 2** | J9 VCC |
 | **J7 pino 2** | J12 VCC |
-| **J7 pino 1** | J8 GND |
-| **J7 pino 1** | J9 GND |
-| **J7 pino 1** | J12 GND |
+| Terra comum (J1 pino 1) | J8 GND |
+| Terra comum (J1 pino 1) | J9 GND |
+| Terra comum (J1 pino 1) | J12 GND |
 
-## 5. Sensor ultrassônico
+O pino 1 do J7 **não é GND**: é o sinal D46, do ultrassônico. Os três servos
+tiram o terra do plano comum, junto com as pontes e o Arduino.
 
-Os conectores **J6 e J7** serão utilizados para o sensor ultrassônico.
+## 5. Sensor ultrassônico HC-SR04
 
-| Conector | Pino | Conexão atual | Função planejada |
+O sensor usa os quatro pinos dos conectores **J6 e J7** juntos: são os quatro
+fios de que o HC-SR04 precisa, distribuídos em dois conectores de dois pinos.
+
+| Conector | Pino | Arduino | Função |
 |---|---:|---|---|
-| **J6** | 1 | GND | GND do ultrassônico |
-| **J6** | 2 | Arduino **D44** | Sinal do ultrassônico |
-| **J7** | 1 | GND | GND/alimentação do ultrassônico |
-| **J7** | 2 | VCC | VCC/alimentação do ultrassônico |
+| **J7** | 2 | VCC | Alimentação |
+| **J7** | 1 | **D46** | Sinal |
+| **J6** | 2 | **D44** | Sinal |
+| **J6** | 1 | GND | Terra |
 
-> O netlist atual confirma J6 pino 1 em GND e J6 pino 2 em D44, além de J7 pino 1 em GND e J7 pino 2 em VCC. A identificação de J6/J7 como conectores do sensor ultrassônico é baseada na função definida para este projeto.
+Qual dos dois sinais é TRIG e qual é ECHO depende de como o sensor foi
+encaixado. A tabela está na ordem física dos pinos, e a pinagem padrão do
+HC-SR04 é VCC, TRIG, ECHO, GND — daí o firmware assumir **TRIG em D46** e
+**ECHO em D44**. Se nenhum `DIST` for reportado, é porque os dois estão
+invertidos: com TRIG e ECHO trocados o `pulseIn` só dá timeout, e basta trocar
+as duas constantes no sketch.
 
 ## 6. Conectores reservados para expansão futura
 
@@ -99,21 +113,27 @@ Esses conectores não possuem função definida no projeto atual e ficam reserva
 | **D50** | J8 Pulse | Servo 1 |
 | **D48** | J9 Pulse | Servo 2 |
 | **D52** | J12 Pulse | Servo 3 |
-| **D44** | J6 pino 2 | Sensor ultrassônico |
+| **D44** | J6 pino 2 | Ultrassônico (ECHO) |
+| **D46** | J7 pino 1 | Ultrassônico (TRIG) |
 | **D38** | J13 pino 1 | Reserva |
 | **D36** | J13 pino 2 | Reserva |
 | **D42** | J14 pino 1 | Reserva |
 | **D40** | J14 pino 2 | Reserva |
 | **A7** | J15 pino 1 | Reserva |
 | **A6** | J15 pino 2 | Reserva |
-| **J7 pino 1** | GND | Sensor ultrassônico / servos |
-| **J7 pino 2** | VCC | Sensor ultrassônico / servos |
+| **J7 pino 2** | VCC | Alimentação do ultrassônico |
+| **J6 pino 1** | GND | Terra do ultrassônico |
 
 ## 8. Resumo dos motores
 
-| Motor | Ponte H | Saídas | Conector |
-|---|---|---|---|
-| **Motor 1** | TB6612 B | A01 / A02 | J3 |
-| **Motor 2** | TB6612 B | B01 / B02 | J2 |
-| **Motor 3** | TB6612 A | A01 / A02 | J5 |
-| **Motor 4** | TB6612 A | B01 / B02 | J4 |
+| Motor | Ponte H | Saídas | Conector | PWM | IN1 | IN2 |
+|---|---|---|---|---|---|---|
+| **Motor 1** | TB6612 A | A01 / A02 | J3 | D33 | D29 | D31 |
+| **Motor 2** | TB6612 A | B01 / B02 | J2 | D23 | D27 | D25 |
+| **Motor 3** | TB6612 B | A01 / A02 | J5 | D53 | D49 | D51 |
+| **Motor 4** | TB6612 B | B01 / B02 | J4 | D43 | D47 | D45 |
+
+Nenhum dos quatro pinos de PWM tem PWM por hardware no Mega, que só o oferece
+nos pinos 2 a 13 e 44 a 46. Por isso o firmware da placa
+(`arduino/firmware/robot_mega_pcb/`) gera o PWM por software, com uma
+interrupção de timer a 31,25 kHz.
