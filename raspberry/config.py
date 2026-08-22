@@ -149,7 +149,26 @@ PID_INTEGRAL_LIMIT = 100.0
 PID_DERIVATIVE_FILTER_ALPHA = 0.0
 MAX_STEER = 80  # Autoridade máxima de giro (PWM)
 LINE_ERROR_FILTER_ALPHA = 0.35  # Peso do erro novo; reduz oscilações frame a frame
-LINE_LOST_GRACE_CYCLES = 1  # Leitura inválida tolerada antes de parar
+LINE_LOST_GRACE_CYCLES = 3  # Leituras inválidas toleradas antes de parar (~150 ms a 20 Hz)
+
+# ---------------------------------------------------------------------------
+# Antecipação de curva
+# ---------------------------------------------------------------------------
+# O erro sozinho só reage ao que já aconteceu: quando a linha sai do centro, o
+# robô já está torto. Medindo a posição da linha em duas faixas da ROI — a de
+# baixo (onde o robô está) e a de cima (para onde a linha vai) — a diferença
+# entre elas dá o rumo da pista adiante, que entra como termo antecipativo.
+# É o que permite atacar uma curva de 90 graus antes de perdê-la.
+LINE_NEAR_BAND = 0.35  # Fração inferior da ROI usada como posição atual
+LINE_FAR_BAND = 0.35  # Fração superior usada como rumo adiante
+LINE_BAND_MIN_PIXELS = 20  # Pixels mínimos na faixa para o centroide valer
+LINE_HEADING_GAIN = 45.0  # Peso do termo antecipativo, em PWM por unidade de rumo
+LINE_CORNER_HEADING = 0.35  # Acima disso a curva é fechada: vira manobra
+# Medido em cena sintética: uma curva de 90 graus dá rumo entre 0,43 e 0,50,
+# e uma diagonal suave fica abaixo de 0,25.
+# Numa curva fechada o filtro do erro atrapalha: ele atrasa a reação em ~3
+# quadros, tempo suficiente para o robô passar reto pela curva.
+LINE_CORNER_BYPASSES_FILTER = True
 
 # Velocidades em unidades de PWM (o Arduino usa 0-255 direto no analogWrite).
 # Abaixo de ~60 os motores não vencem o atrito com carga.
@@ -163,6 +182,17 @@ ALIGNMENT_SPEED = 110
 ALIGNMENT_TOLERANCE = 0.15
 CONTROL_LOOP_HZ = 20.0
 CURVE_CORRECTION = 1.25  # Multiplicador da autoridade de curva (wz)
+
+# Zona morta dos motores: abaixo deste PWM a roda não vence o atrito e o
+# firmware não consegue expressar o comando. Precisa espelhar kMinMotorSpeed do
+# robot_mega.ino. Quando um comando cairia nessa faixa, a translação é reduzida
+# até que todas as rodas fiquem em zero ou acima do mínimo — numa curva fechada
+# isso transforma sozinho o avanço em pivô, que é o que a curva pede.
+MOTOR_DEADBAND_PWM = 110
+MOTOR_MAX_PWM = 255
+# Abaixo disto o comando é ajuste fino demais para os motores: não vale ampliar
+# nem virar pivô, porque elevá-lo ao mínimo seria um solavanco pior que ignorar.
+MOTOR_MIN_MEANINGFUL_PWM = 30
 STEER_SIGN = 1.0  # Use -1.0 se o robô virar para o lado errado
 
 # ============================================================================

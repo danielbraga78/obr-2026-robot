@@ -114,8 +114,13 @@ void setMotorSpeed(uint8_t motorIndex, int speed) {
   }
 
   speed = constrain(speed, -kMaxMotorSpeed, kMaxMotorSpeed);
-  if (speed != 0 && abs(speed) < kMinMotorSpeed) {
-    speed = speed > 0 ? kMinMotorSpeed : -kMinMotorSpeed;
+  // Abaixo do minimo a roda nao vence o atrito. Elevar ao minimo era pior que
+  // parar: pedia 110 a uma roda que deveria estar quase parada, o que destruia
+  // o diferencial nas curvas fechadas e deixava a malha de controle aberta.
+  // Quem ajusta o comando para caber nesta faixa e o fit_to_motor_deadband do
+  // Raspberry; aqui fica so a rede de seguranca.
+  if (abs(speed) < kMinMotorSpeed) {
+    speed = 0;
   }
   const bool reverse = speed < 0;
   const uint8_t pwmValue = static_cast<uint8_t>(abs(speed));

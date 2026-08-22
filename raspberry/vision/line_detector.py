@@ -5,11 +5,15 @@ import cv2
 import numpy as np
 
 from ..config import (
+    LINE_BAND_MIN_PIXELS,
+    LINE_CORNER_HEADING,
+    LINE_FAR_BAND,
     LINE_MAX,
     LINE_MAX_COVERAGE,
     LINE_MIN,
     LINE_MIN_AREA,
     LINE_MIN_CONTRAST,
+    LINE_NEAR_BAND,
     LINE_THRESHOLD_MODE,
 )
 
@@ -23,6 +27,11 @@ class LineDetection:
     threshold: Optional[float] = None  # Limiar usado (modo adaptativo)
     coverage: float = 0.0  # Fração do quadro ocupada pela máscara
     reason: Optional[str] = None  # Por que não detectou, quando não detectou
+    near_x: Optional[float] = None  # Centro da linha na faixa inferior (onde o robô está)
+    far_x: Optional[float] = None  # Centro na faixa superior (para onde a linha vai)
+    heading: float = 0.0  # (far_x - near_x) normalizado: rumo da pista adiante
+    corner: bool = False  # Curva fechada à frente
+    corner_side: int = 0  # -1 esquerda, +1 direita, 0 indefinido
 
 
 class LineDetector:
@@ -74,8 +83,25 @@ class LineDetector:
         if moments["m00"] == 0:
             return LineDetection(frame_width=width, threshold=threshold, coverage=coverage, reason="momento nulo")
 
-        center_x = moments["m10"] / moments["m00"]
+        line_mask = np.zeros(mask.shape, dtype=np.uint8)
+        cv2.drawContours(line_mask, [largest], -1, 255, thickness=cv2.FILLED)
+
+        near_x = self._band_center(line_mask, 1.0 - LINE_NEAR_BAND, 1.0)
+        far_x = self._band_center(line_mask, 0.0, LINE_FAR_BAND)
+
+        # A posição que interessa ao controle é a mais próxima do robô. O
+        # centroide do contorno inteiro é puxado pelo trecho distante e, numa
+        # curva de 90 graus, aponta para o meio do "L" — um lugar onde a linha
+        # não está.
+        center_x = near_x if near_x is not None else moments["m10"] / moments["m00"]
         error = center_x - (width / 2)
+        half_width = max(1.0, width / 2.0)
+
+        heading = 0.0
+        if near_x is not None and far_x is not None:
+            heading = max(-1.0, min(1.0, (far_x - near_x) / half_width))
+        corner = abs(heading) >= LINE_CORNER_HEADING
+
         confidence = min(1.0, area / 10000.0)
         return LineDetection(
             center_x=center_x,
@@ -84,7 +110,27 @@ class LineDetector:
             frame_width=width,
             threshold=threshold,
             coverage=coverage,
+            near_x=near_x,
+            far_x=far_x,
+            heading=heading,
+            corner=corner,
+            corner_side=(0 if not corner else (1 if heading > 0 else -1)),
         )
+
+    @staticmethod
+    def _band_center(line_mask: np.ndarray, top_fraction: float, bottom_fraction: float) -> Optional[float]:
+        """Centro horizontal da linha numa faixa horizontal da máscara."""
+        height = line_mask.shape[0]
+        y0 = int(top_fraction * height)
+        y1 = max(y0 + 1, int(bottom_fraction * height))
+        band = line_mask[y0:y1]
+        if int(np.count_nonzero(band)) < LINE_BAND_MIN_PIXELS:
+            return None
+        columns = band.sum(axis=0, dtype=np.float64)
+        total = columns.sum()
+        if total <= 0:
+            return None
+        return float((columns * np.arange(band.shape[1])).sum() / total)
 
     def _build_mask(self, hsv: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[float], Optional[str]]:
         if self.mode == "hsv":

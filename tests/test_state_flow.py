@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from raspberry.config import RobotContext
+from raspberry.config import LINE_LOST_GRACE_CYCLES, RobotContext
 from raspberry.state_machine import RobotStateMachine
 from raspberry.states.alignment import AlignBallState
 from raspberry.states.avoid_obstacle import AvoidObstacleState
@@ -109,9 +109,8 @@ class StateFlowTests(unittest.TestCase):
         for _ in range(3):
             robot.tick(ON_LINE)
 
-        robot.tick(NO_LINE)
-        robot.tick(NO_LINE)
-        robot.tick(NO_LINE)
+        for _ in range(LINE_LOST_GRACE_CYCLES + 2):
+            robot.tick(NO_LINE)
 
         self.assertIn("SEARCH_LINE", robot.executed_states)
 

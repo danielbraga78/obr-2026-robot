@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from raspberry.config import BASE_SPEED, MAX_STEER, MIN_SPEED, RobotContext
+from raspberry.config import BASE_SPEED, LINE_LOST_GRACE_CYCLES, MAX_STEER, MIN_SPEED, RobotContext
 from raspberry.states.follow_line import FollowLineState
 from raspberry.vision.line_detector import LineDetection
 
@@ -96,9 +96,9 @@ class FollowLineTests(unittest.TestCase):
         context = RobotContext()
         context.last_detections = {"line": LineDetection()}
 
-        state.execute(context, None, {})
-        result = state.execute(context, None, {})
-        result = state.execute(context, None, {})
+        result = None
+        for _ in range(LINE_LOST_GRACE_CYCLES + 1):
+            result = state.execute(context, None, {})
 
         self.assertEqual(result.command, "STOP")
         self.assertEqual(result.next_state, "SEARCH_LINE")
