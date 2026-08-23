@@ -1,8 +1,12 @@
 #include <Arduino.h>
 
-// Pinagem do HC-SR04 para Arduino Mega
-constexpr uint8_t kUltrasonicTrigPin = A2;
-constexpr uint8_t kUltrasonicEchoPin = A3;
+// true = PCB (HARDWARE.md); false = montagem normal.
+constexpr bool kUsePcbWiring = true;
+
+// Montagem normal: TRIG A2, ECHO A3.
+// PCB: J6.2/TRIG D44, J7.1/ECHO D46.
+constexpr uint8_t kUltrasonicTrigPin = kUsePcbWiring ? 44 : A2;
+constexpr uint8_t kUltrasonicEchoPin = kUsePcbWiring ? 46 : A3;
 constexpr unsigned long kUltrasonicTimeoutUs = 100000;  // Timeout para ~4m
 
 void setup() {
@@ -16,7 +20,12 @@ void setup() {
   digitalWrite(kUltrasonicTrigPin, LOW);
 
   Serial.println("Ultrasonic Test - HC-SR04");
-  Serial.println("TRIG = A2, ECHO = A3");
+  Serial.print("Montagem: ");
+  Serial.println(kUsePcbWiring ? "PCB" : "normal");
+  Serial.print("TRIG = ");
+  Serial.println(kUsePcbWiring ? "D44" : "A2");
+  Serial.print("ECHO = ");
+  Serial.println(kUsePcbWiring ? "D46" : "A3");
   Serial.println();
 }
 

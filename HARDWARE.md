@@ -26,7 +26,7 @@ uma das secoes abaixo e use o firmware correspondente; nao misture os mapas.
 O sketch em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino) usa os seguintes pinos para o robô:
 
 - Motor 4: enable em D2, IN1 em D22, IN2 em D23
-- Motor 2: enable em D3, IN1 em D24, IN2 em D25
+- Motor 2: enable em D3, IN1 em D25, IN2 em D24
 - Motor 3: enable em D4, IN1 em D26, IN2 em D27
 - Motor 1: enable em D5, IN1 em D28 (A4), IN2 em D29 (A5)
 - Servo da garra: pino D44
@@ -133,15 +133,15 @@ A ponte H A controla os motores da esquerda: FL e RL.
 | VM | alimentação dos motores | sem conexão direta ao Mega; ligar à bateria/fonte |
 | VCC | alimentação da lógica | 5 V do Mega |
 | GND | terra comum | GND do Mega e GND da bateria |
-| STBY | habilitação do driver | não usado pelo firmware atual; não há pino do Mega associado |
+| STBY | habilitação do driver | 5 V do Mega; sem pino dedicado no firmware normal |
 | PWMA | PWM do canal A | D2 |
 | AIN1 | direção do canal A | D22 |
 | AIN2 | direção do canal A | D23 |
 | AO1 | saída do canal A | terminal do motor FL |
 | AO2 | saída do canal A | terminal do motor FL |
 | PWMB | PWM do canal B | D3 |
-| BIN1 | direção do canal B | D24 |
-| BIN2 | direção do canal B | D25 |
+| BIN1 | direção do canal B | D25 |
+| BIN2 | direção do canal B | D24 |
 | BO1 | saída do canal B | terminal do motor RL |
 | BO2 | saída do canal B | terminal do motor RL |
 
@@ -156,8 +156,8 @@ A ponte H A controla os motores da esquerda: FL e RL.
 | IN1 do canal A | pino D22 do Mega |
 | IN2 do canal A | pino D23 do Mega |
 | Enable/ PWM do canal B | pino D3 do Mega |
-| IN1 do canal B | pino D24 do Mega |
-| IN2 do canal B | pino D25 do Mega |
+| IN1 do canal B | pino D25 do Mega |
+| IN2 do canal B | pino D24 do Mega |
 | AO1/AO2 | motor FL |
 | BO1/BO2 | motor RL |
 
@@ -178,7 +178,7 @@ A ponte H B controla os motores da direita: FR e RR.
 | VM | alimentação dos motores | sem conexão direta ao Mega; ligar à bateria/fonte |
 | VCC | alimentação da lógica | 5 V do Mega |
 | GND | terra comum | GND do Mega e GND da bateria |
-| STBY | habilitação do driver | não usado pelo firmware atual; não há pino do Mega associado |
+| STBY | habilitação do driver | 5 V do Mega; sem pino dedicado no firmware normal |
 | PWMA | PWM do canal A | D4 |
 | AIN1 | direção do canal A | D26 |
 | AIN2 | direção do canal A | D27 |
@@ -476,6 +476,11 @@ Use esta secao somente com o firmware
 contra `Untitled Sketch 3_netlist.xml` em 2026-08-23. Nao misture esta montagem
 com a montagem normal descrita acima.
 
+> A netlist confirma os nomes das redes eletricas, pinos do Mega e componentes
+> genericos. Os headers de motor aparecem na XML apenas como `motor`, sem os
+> nomes fisicos J2-J5; por isso a numeracao J2-J5 abaixo deve ser conferida na
+> serigrafia da PCB. As conexoes de sinais e pinos do Mega sao as da netlist.
+
 ### Alimentacao da PCB
 
 | Origem | Destino | Funcao |
@@ -564,6 +569,22 @@ essa mesma ordem.
 5. Ligue o HC-SR04 usando J6 e J7 na ordem TRIG D44 e ECHO D46.
 6. Instale o jumper comum de STBY.
 7. Grave somente `robot_mega_pcb.ino` e teste cada motor individualmente antes de colocar carga.
+
+### Testes Arduino com a PCB
+
+Os testes abaixo possuem a mesma selecao de montagem. Deixe
+`kUsePcbWiring = true` para a PCB; use `false` somente na montagem normal.
+
+| Teste | Arquivo | Funcao na PCB |
+|---|---|---|
+| Bancada manual | `arduino/tests/motor_bench_test/motor_bench_test.ino` | Seleciona motores J2-J5 e usa PWM por software |
+| Pontes omnidirecionais | `arduino/tests/omni_wheels_test/omni_wheels_test.ino` | Testa Ponte A e Ponte B com D23/D33/D43/D53 |
+| Motores aleatorios | `arduino/tests/omni_wheels_random_individual_test/omni_wheels_random_individual_test.ino` | Testa cada canal PCB individualmente |
+| HC-SR04 | `arduino/tests/ultrasonic_test/ultrasonic_test.ino` | Usa TRIG D44 e ECHO D46 |
+
+Nos testes de motores da PCB, o PWM por software usa Timer2 porque os enables
+D23, D33, D43 e D53 nao sao pinos PWM de hardware do Mega. O STBY deve estar
+habilitado pelo jumper comum antes dos testes.
 
 ---
 

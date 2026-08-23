@@ -20,6 +20,24 @@
 
 // Pinagem de HARDWARE.md, com a topologia conferida contra o
 // netlist do Fritzing. Nenhum destes pinos de enable tem PWM de hardware.
+// A netlist nomeia os headers de motor apenas como "motor"; J2-J5 sao os
+// identificadores fisicos usados na placa e devem ser conferidos na serigrafia.
+//
+// LISTA COMPLETA DE CONEXOES DA PCB
+// Alimentacao: J1.1 -> GND comum; J1.2 -> VM e VCC das duas pontes H.
+// Habilitacao: STBY das pontes A e B -> jumper comum.
+// Ponte A: D33 -> PWMA; D29 -> AIN1; D31 -> AIN2; A01 -> J3.2;
+//          A02 -> J3.1; D23 -> PWMB; D27 -> BIN1; D25 -> BIN2;
+//          B01 -> J2.1; B02 -> J2.2.
+// Ponte B: D53 -> PWMA; D49 -> AIN1; D51 -> AIN2; A01 -> J5.2;
+//          A02 -> J5.1; D43 -> PWMB; D47 -> BIN1; D45 -> BIN2;
+//          B01 -> J4.1; B02 -> J4.2.
+// Servos: D50 -> J8 pulse; D48 -> J9 pulse; D52 -> J12 pulse;
+//         J7.2 -> VCC dos servos; GND dos servos -> GND comum.
+// HC-SR04: J7.2 -> VCC; J7.1 -> D46/ECHO; J6.2 -> D44/TRIG;
+//          J6.1 -> GND comum.
+// Expansao: J13.1 -> D38; J13.2 -> D36; J14.1 -> D42; J14.2 -> D40;
+//           J15.1 -> A7; J15.2 -> A6. Esses conectores ficam reservados.
 //
 // --- Ponte H A: J3 (Motor 1) e J2 (Motor 2) -------------------------------
 constexpr uint8_t kBridgeAChannelAEnablePin = 33;  // PWMA (soft PWM) -> J3

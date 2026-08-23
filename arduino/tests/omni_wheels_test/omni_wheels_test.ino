@@ -4,21 +4,8 @@
 // Sketch independente para testar rodas omnidirecionais no Arduino Mega.
 // Objetivo: validar o funcionamento dos 4 motores sem depender do Raspberry.
 
-constexpr uint8_t kMotor4EnablePin = 2;
-constexpr uint8_t kMotor4In1Pin = 22;
-constexpr uint8_t kMotor4In2Pin = 23;
-
-constexpr uint8_t kMotor2EnablePin = 3;
-constexpr uint8_t kMotor2In1Pin = 24;
-constexpr uint8_t kMotor2In2Pin = 25;
-
-constexpr uint8_t kMotor3EnablePin = 4;
-constexpr uint8_t kMotor3In1Pin = 26;
-constexpr uint8_t kMotor3In2Pin = 27;
-
-constexpr uint8_t kMotor1EnablePin = 5;
-constexpr uint8_t kMotor1In1Pin = 28;
-constexpr uint8_t kMotor1In2Pin = 29;
+// true = PCB; false = montagem normal. Na PCB os enables usam PWM por software.
+constexpr bool kUsePcbWiring = true;
 
 constexpr int kMaxMotorSpeed = 200;
 constexpr int kTestDurationMs = 2000;
@@ -32,12 +19,51 @@ struct MotorChannel {
   uint8_t in2Pin;
 };
 
-MotorChannel g_channels[4] = {
-  {kMotor1EnablePin, kMotor1In1Pin, kMotor1In2Pin},
-  {kMotor2EnablePin, kMotor2In1Pin, kMotor2In2Pin},
-  {kMotor3EnablePin, kMotor3In1Pin, kMotor3In2Pin},
-  {kMotor4EnablePin, kMotor4In1Pin, kMotor4In2Pin},
+MotorChannel g_pcbChannels[4] = {
+  {33, 29, 31}, {23, 27, 25}, {53, 49, 51}, {43, 47, 45},
 };
+
+MotorChannel g_normalChannels[4] = {
+  {5, 28, 29}, {3, 25, 24}, {4, 26, 27}, {2, 22, 23},
+};
+
+MotorChannel g_channels[4] = {
+  {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0},
+};
+
+volatile uint8_t g_softPwmDuty[4] = {0, 0, 0, 0};
+volatile uint8_t* g_softPwmPort[4] = {nullptr, nullptr, nullptr, nullptr};
+uint8_t g_softPwmMask[4] = {0, 0, 0, 0};
+volatile uint8_t g_softPwmPhase = 0;
+
+ISR(TIMER2_COMPA_vect) {
+  const uint8_t phase = g_softPwmPhase++;
+  for (uint8_t i = 0; i < 4; ++i) {
+    if (g_softPwmPort[i] == nullptr) continue;
+    if (phase == 0 && g_softPwmDuty[i] != 0) *g_softPwmPort[i] |= g_softPwmMask[i];
+    if (phase == 0 && g_softPwmDuty[i] == 0) *g_softPwmPort[i] &= ~g_softPwmMask[i];
+    if (phase >= g_softPwmDuty[i]) *g_softPwmPort[i] &= ~g_softPwmMask[i];
+  }
+}
+
+void initSoftPwm() {
+  bool active = false;
+  for (uint8_t i = 0; i < 4; ++i) {
+    if (digitalPinHasPWM(g_channels[i].enablePin)) continue;
+    g_softPwmPort[i] = portOutputRegister(digitalPinToPort(g_channels[i].enablePin));
+    g_softPwmMask[i] = digitalPinToBitMask(g_channels[i].enablePin);
+    active = true;
+  }
+  if (!active) return;
+  noInterrupts();
+  TCCR2A = _BV(WGM21); TCCR2B = _BV(CS21); OCR2A = 63; TIMSK2 = _BV(OCIE2A);
+  interrupts();
+}
+
+void writeEnable(uint8_t motorIndex, uint8_t duty) {
+  if (g_softPwmPort[motorIndex] != nullptr) g_softPwmDuty[motorIndex] = duty;
+  else analogWrite(g_channels[motorIndex].enablePin, duty);
+}
 
 void initMotors() {
   for (uint8_t i = 0; i < 4; ++i) {
@@ -52,7 +78,7 @@ void stopAllMotors() {
   for (uint8_t i = 0; i < 4; ++i) {
     digitalWrite(g_channels[i].in1Pin, LOW);
     digitalWrite(g_channels[i].in2Pin, LOW);
-    analogWrite(g_channels[i].enablePin, 0);
+    writeEnable(i, 0);
   }
 }
 
@@ -67,7 +93,7 @@ void setMotorSpeed(uint8_t motorIndex, int speed) {
 
   digitalWrite(g_channels[motorIndex].in1Pin, reverse ? HIGH : LOW);
   digitalWrite(g_channels[motorIndex].in2Pin, reverse ? LOW : HIGH);
-  analogWrite(g_channels[motorIndex].enablePin, pwmValue);
+  writeEnable(motorIndex, pwmValue);
 }
 
 void runBridgeMotors(const char* bridgeName, const uint8_t* motorIndices, uint8_t count, int speed) {
@@ -100,7 +126,12 @@ void setup() {
     ;
   }
 
+  for (uint8_t i = 0; i < 4; ++i) {
+    g_channels[i] = kUsePcbWiring ? g_pcbChannels[i] : g_normalChannels[i];
+  }
+
   initMotors();
+  initSoftPwm();
   Serial.println("Teste de motores iniciado.");
   Serial.println("A Ponte A (esquerda) e a Ponte B (direita) giram separadamente por 2 segundos.");
 }
