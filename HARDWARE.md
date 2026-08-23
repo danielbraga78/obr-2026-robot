@@ -15,7 +15,13 @@ O objetivo é que qualquer pessoa da equipe consiga montar, conectar, testar e d
 
 ---
 
-### Mapeamento de pinos do firmware atual (Arduino Mega 2560)
+### Mapeamento de pinos do firmware normal (Arduino Mega 2560)
+
+Este documento e a fonte unica para as conexoes e montagens fisicas. Escolha
+uma das secoes abaixo e use o firmware correspondente; nao misture os mapas.
+
+- Montagem normal: `arduino/firmware/robot_mega/robot_mega.ino`
+- Montagem com PCB: `arduino/firmware/robot_mega_pcb/robot_mega_pcb.ino`
 
 O sketch em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino) usa os seguintes pinos para o robô:
 
@@ -26,7 +32,8 @@ O sketch em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_
 - Servo da garra: pino D44
 - Sensor ultrassônico: TRIG em A2, ECHO em A3
 
-> O firmware atual não usa um pino STBY dedicado; o controle é feito pelos pinos de enable e direção. Não existe um pino do Mega reservado para STBY neste firmware, e a documentação abaixo segue esse mapeamento real.
+> Na montagem normal, o firmware nao usa um pino STBY dedicado: ligue STBY das
+> duas pontes a 5 V. Na montagem PCB, STBY tambem fica habilitado pelo jumper.
 
 ### Resumo exato das conexões no Arduino Mega
 
@@ -36,8 +43,8 @@ O sketch em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_
 | Ponte H A — canal A IN1 | D22 | direção do motor esquerdo frontal |
 | Ponte H A — canal A IN2 | D23 | direção do motor esquerdo frontal |
 | Ponte H A — canal B enable/PWM | D3 | PWM do motor esquerdo traseiro |
-| Ponte H A — canal B IN1 | D24 | direção do motor esquerdo traseiro |
-| Ponte H A — canal B IN2 | D25 | direção do motor esquerdo traseiro |
+| Ponte H A — canal B IN1 | D25 | direção do motor esquerdo traseiro |
+| Ponte H A — canal B IN2 | D24 | direção do motor esquerdo traseiro |
 | Ponte H B — canal A enable/PWM | D4 | PWM do motor direito frontal |
 | Ponte H B — canal A IN1 | D26 | direção do motor direito frontal |
 | Ponte H B — canal A IN2 | D27 | direção do motor direito frontal |
@@ -364,8 +371,8 @@ O firmware atual usa o pino D44 para o servo da garra.
 ### Passo 4 — Conectar os motores às pontes H
 
 - conectar FL à Ponte A (AO1/AO2);
-- conectar FR à Ponte A (BO1/BO2);
-- conectar RL à Ponte B (AO1/AO2);
+- conectar RL à Ponte A (BO1/BO2);
+- conectar FR à Ponte B (AO1/AO2);
 - conectar RR à Ponte B (BO1/BO2).
 
 ### Passo 5 — Conectar alimentação
@@ -387,7 +394,7 @@ O firmware atual usa o pino D44 para o servo da garra.
 
 - ligar os sinais de direção e PWM da Ponte A aos pinos definidos no firmware;
 - ligar os sinais de direção e PWM da Ponte B aos pinos definidos no firmware;
-- ligar o STBY conforme a configuração escolhida.
+- ligar o STBY das duas pontes a 5 V na montagem normal.
 
 ### Passo 7 — Conectar servo da garra
 
@@ -459,6 +466,104 @@ O firmware atual usa o pino D44 para o servo da garra.
 - [ ] sensor ultrassônico conectado
 - [ ] Arduino ligado ao Raspberry Pi
 - [ ] firmware compilado e testado
+
+---
+
+## Montagem com a PCB customizada
+
+Use esta secao somente com o firmware
+`arduino/firmware/robot_mega_pcb/robot_mega_pcb.ino`. O mapa foi conferido
+contra `Untitled Sketch 3_netlist.xml` em 2026-08-23. Nao misture esta montagem
+com a montagem normal descrita acima.
+
+### Alimentacao da PCB
+
+| Origem | Destino | Funcao |
+|---|---|---|
+| J1 pino 1 | GND dos dois TB6612, Arduino, servos e sensor | Terra comum |
+| J1 pino 2 | VM dos dois TB6612 | Alimentacao dos motores |
+| J1 pino 2 | VCC dos dois TB6612 e J7 pino 2 | Rede de alimentacao da PCB |
+| Jumper comum | STBY das duas pontes | Habilitacao |
+
+> **Atencao eletrica:** a netlist liga `VM` e `VCC` a J1 pino 2. Antes de
+> energizar, confirme com multimetro a tensao da fonte e o limite de 5 V do
+> VCC dos modulos. Nunca aplique uma tensao maior que 5 V ao VCC.
+
+### Ponte H A da PCB
+
+| Pino TB6612 | Arduino Mega | Conector / funcao |
+|---|---:|---|
+| PWMA | D33 | J3, PWM Motor 1 |
+| AIN1 | D29 | J3, direcao Motor 1 |
+| AIN2 | D31 | J3, direcao Motor 1 |
+| A01 | J3 pino 2 | Motor 1 |
+| A02 | J3 pino 1 | Motor 1 |
+| PWMB | D23 | J2, PWM Motor 2 |
+| BIN1 | D27 | J2, direcao Motor 2 |
+| BIN2 | D25 | J2, direcao Motor 2 |
+| B01 | J2 pino 1 | Motor 2 |
+| B02 | J2 pino 2 | Motor 2 |
+
+### Ponte H B da PCB
+
+| Pino TB6612 | Arduino Mega | Conector / funcao |
+|---|---:|---|
+| PWMA | D53 | J5, PWM Motor 3 |
+| AIN1 | D49 | J5, direcao Motor 3 |
+| AIN2 | D51 | J5, direcao Motor 3 |
+| A01 | J5 pino 2 | Motor 3 |
+| A02 | J5 pino 1 | Motor 3 |
+| PWMB | D43 | J4, PWM Motor 4 |
+| BIN1 | D47 | J4, direcao Motor 4 |
+| BIN2 | D45 | J4, direcao Motor 4 |
+| B01 | J4 pino 1 | Motor 4 |
+| B02 | J4 pino 2 | Motor 4 |
+
+Os quatro sinais PWM da PCB estao em D23, D33, D43 e D53, que nao possuem
+PWM por hardware no Mega. Por isso o firmware PCB usa PWM por software.
+
+### Servos da PCB
+
+| Conector | Sinal | Arduino | Alimentacao |
+|---|---|---:|---|
+| J8 | Pulse | D50 | VCC e GND comuns |
+| J9 | Pulse | D48 | VCC e GND comuns |
+| J12 | Pulse | D52 | VCC e GND comuns |
+
+J7 pino 2 alimenta VCC dos tres servos. O GND dos servos vem do terra comum em
+J1 pino 1. Use uma fonte de 5 V com corrente suficiente para os servos.
+
+### HC-SR04 na PCB
+
+O sensor usa J6 e J7 juntos:
+
+| Conector | Pino | Arduino | Funcao |
+|---|---:|---:|---|
+| J7 | 2 | VCC | Alimentacao |
+| J7 | 1 | D46 | ECHO |
+| J6 | 2 | D44 | TRIG |
+| J6 | 1 | GND | Terra |
+
+A netlist nomeia explicitamente TRIG em D44 e ECHO em D46. O firmware PCB usa
+essa mesma ordem.
+
+### Conectores de expansao da PCB
+
+| Conector | Pino 1 | Pino 2 | Estado |
+|---|---|---|---|
+| J13 | D38 | D36 | Reserva |
+| J14 | D42 | D40 | Reserva |
+| J15 | A7 | A6 | Reserva |
+
+### Procedimento especifico da PCB
+
+1. Instale o Arduino, os dois TB6612, os quatro motores e os conectores J1 a J15.
+2. Ligue cada motor nos pares de saida J2, J3, J4 e J5 conforme as tabelas acima.
+3. Ligue J1, confirme a tensao de VCC e verifique o GND comum antes de conectar a bateria.
+4. Ligue os servos em J8, J9 e J12.
+5. Ligue o HC-SR04 usando J6 e J7 na ordem TRIG D44 e ECHO D46.
+6. Instale o jumper comum de STBY.
+7. Grave somente `robot_mega_pcb.ino` e teste cada motor individualmente antes de colocar carga.
 
 ---
 

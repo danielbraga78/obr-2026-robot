@@ -2,7 +2,7 @@
 #include <Servo.h>
 
 // ===========================================================================
-// Sketch para Arduino Mega 2560 com a PCB (conexoes_arduino_com_pcb.md)
+// Sketch para Arduino Mega 2560 com a PCB (HARDWARE.md, secao "Montagem com a PCB customizada")
 // ===========================================================================
 //
 // Variante do robot_mega.ino para a placa. O sketch original continua valido
@@ -18,7 +18,7 @@
 //
 // PROTOCOLO: identico ao robot_mega.ino, mais os comandos CAL de calibracao.
 
-// Pinagem de conexoes_arduino_com_pcb.md, com a topologia conferida contra o
+// Pinagem de HARDWARE.md, com a topologia conferida contra o
 // netlist do Fritzing. Nenhum destes pinos de enable tem PWM de hardware.
 //
 // --- Ponte H A: J3 (Motor 1) e J2 (Motor 2) -------------------------------
@@ -44,16 +44,12 @@ constexpr uint8_t kServoPin = 50;
 
 // Ultrassonico HC-SR04, ligado atravessando dois conectores de dois pinos:
 //
-//   J7 pino 2 -> VCC       J7 pino 1 -> D46
-//   J6 pino 2 -> D44       J6 pino 1 -> GND
+//   J7 pino 2 -> VCC       J7 pino 1 -> ECHO/D46
+//   J6 pino 2 -> TRIG/D44  J6 pino 1 -> GND
 //
-// O netlist do Fritzing confirma D46 em J7 pino 1 — o documento da placa dizia
-// que esse pino era GND. Qual dos dois sinais e TRIG depende de
-// como o sensor foi encaixado; a ordem abaixo segue o padrao do HC-SR04
-// (VCC, TRIG, ECHO, GND). Se nao vier nenhum DIST, troque as duas constantes:
-// com TRIG e ECHO invertidos o pulseIn so da timeout.
-constexpr uint8_t kUltrasonicTrigPin = 46;
-constexpr uint8_t kUltrasonicEchoPin = 44;
+// A netlist do Fritzing nomeia explicitamente TRIG em D44 e ECHO em D46.
+constexpr uint8_t kUltrasonicTrigPin = 44;
+constexpr uint8_t kUltrasonicEchoPin = 46;
 constexpr unsigned long kUltrasonicTimeoutUs = 23000;  // ~4 m
 
 constexpr unsigned long kWatchdogTimeoutMs = 1000;

@@ -11,7 +11,7 @@
 // ===========================================================================
 // Qual montagem está no robô
 // ===========================================================================
-// true  = PCB (conexoes_arduino_com_pcb.md), usado pelo robot_mega_pcb.ino
+// true  = PCB (HARDWARE.md, secao de montagem com PCB), usado pelo robot_mega_pcb.ino
 // false = protoboard, usado pelo robot_mega.ino
 constexpr bool kUsePcbWiring = true;
 

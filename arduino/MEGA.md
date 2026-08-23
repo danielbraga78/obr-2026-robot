@@ -14,7 +14,7 @@ compilar e fazer upload.
 
 ## Mapeamento de pinos atual
 
-Este é o mapeamento usado no firmware atual em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino).
+Este é o mapeamento usado no firmware normal em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino). As conexoes das montagens normal e PCB estao centralizadas em [HARDWARE.md](../HARDWARE.md); use o firmware correspondente a montagem escolhida.
 Mantenha o GND comum entre todos os dispositivos e siga este layout para evitar divergências.
 
 | Constante no sketch | Função | Pino Mega |
@@ -34,7 +34,7 @@ Mantenha o GND comum entre todos os dispositivos e siga este layout para evitar 
 | `kServoPin` | Sinal do servo da garra | `44` (servo) |
 | `kUltrasonicTrigPin` | TRIG HC-SR04 | `A2` |
 | `kUltrasonicEchoPin` | ECHO HC-SR04 | `A3` |
-| `STBY` (TB6612FNG) | Habilita ponte H (compartilhável) | usar `30` ou `31` |
+| `STBY` (TB6612FNG) | Habilita ponte H (compartilhável) | `5V` |
 
 Notas:
 - Os pinos 2,3,4,5 são PWM no Mega e servem para os sinais `enable` (analogWrite).
