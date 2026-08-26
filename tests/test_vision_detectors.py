@@ -195,6 +195,15 @@ class ObstacleDetectorTests(unittest.TestCase):
             detectors_disabled = build_vision_detectors()
             self.assertNotIn("obstacle", detectors_disabled)
 
+    def test_ultrasonic_is_preferred_over_visual_obstacle_detection(self):
+        with patch("raspberry.main.OBSTACLE_DETECTION_ENABLED", True), patch(
+            "raspberry.main.SENSORS_ENABLED",
+            {"ultrasonic": True, "vision_obstacle_detection": True},
+        ):
+            detectors = build_vision_detectors()
+
+        self.assertNotIn("obstacle", detectors)
+
     def test_obstacle_detector_detects_dark_region(self):
         detector = VisionBasedObstacleDetector(confidence_threshold=0.0, min_obstacle_area=10)
         frame = np.full((120, 160, 3), 200, dtype=np.uint8)

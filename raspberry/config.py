@@ -112,8 +112,8 @@ SAFE_ZONE_MAX = (70, 255, 255)
 # ============================================================================
 # Configuração Detecção de Obstáculos (Vision-based)
 # ============================================================================
-# O robô agora usa APENAS visão computacional para detectar obstáculos.
-# Nenhum sensor ultrassônico, ToF ou LiDAR é obrigatório.
+# O ultrassônico é usado como fonte preferencial quando habilitado. A visão
+# continua disponível como fallback quando o ultrassônico está desabilitado.
 OBSTACLE_DETECTION_ENABLED = True
 OBSTACLE_CONFIDENCE_THRESHOLD = 0.3  # 0.0 a 1.0
 OBSTACLE_MIN_AREA = 100  # Pixels mínimos para considerar um objeto

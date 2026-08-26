@@ -82,7 +82,12 @@ def build_vision_detectors() -> dict:
         "rescue": RescueDetector(),
         "safe_zone": SafeZoneDetector(),
     }
-    if OBSTACLE_DETECTION_ENABLED and SENSORS_ENABLED.get("vision_obstacle_detection", True):
+    ultrasonic_enabled = SENSORS_ENABLED.get("ultrasonic", False)
+    if (
+        OBSTACLE_DETECTION_ENABLED
+        and SENSORS_ENABLED.get("vision_obstacle_detection", True)
+        and not ultrasonic_enabled
+    ):
         detectors["obstacle"] = VisionBasedObstacleDetector(
             confidence_threshold=OBSTACLE_CONFIDENCE_THRESHOLD,
             min_obstacle_area=OBSTACLE_MIN_AREA,
