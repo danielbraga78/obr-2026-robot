@@ -146,18 +146,18 @@ void stopAllMotors() {
 }
 
 void applyOmniMotion(float vx, float vy, float wz) {
-  const float frontLeft = vx + vy + wz;
-  const float frontRight = -vx + vy + wz;
-  const float rearLeft = -vx - vy + wz;
-  const float rearRight = vx - vy + wz;
+  const float motor1 = vx + vy + wz;
+  const float motor2 = vx - vy - wz;
+  const float motor3 = vx - vy + wz;
+  const float motor4 = vx + vy - wz;
 
-  const float maxAbs = max(max(abs(frontLeft), abs(frontRight)), max(abs(rearLeft), abs(rearRight)));
+  const float maxAbs = max(max(abs(motor1), abs(motor2)), max(abs(motor3), abs(motor4)));
   const float scale = (maxAbs > kMaxMotorSpeed) ? (kMaxMotorSpeed / maxAbs) : 1.0f;
 
-  const int fl = static_cast<int>(frontLeft * scale);
-  const int fr = static_cast<int>(frontRight * scale);
-  const int rl = static_cast<int>(rearLeft * scale);
-  const int rr = static_cast<int>(rearRight * scale);
+  const int m1 = static_cast<int>(motor1 * scale);
+  const int m2 = static_cast<int>(motor2 * scale);
+  const int m3 = static_cast<int>(motor3 * scale);
+  const int m4 = static_cast<int>(motor4 * scale);
 
   if (g_safetyStopActive) {
     stopAllMotors();
@@ -167,10 +167,10 @@ void applyOmniMotion(float vx, float vy, float wz) {
   // Ordem lógica: motor 0 = frente esquerdo, motor 1 = trás esquerdo,
   // motor 2 = frente direito, motor 3 = trás direito.
   // Os motores da esquerda ficam na Ponte A e os da direita na Ponte B.
-  setMotorSpeed(0, fl);
-  setMotorSpeed(1, rl);
-  setMotorSpeed(2, fr);
-  setMotorSpeed(3, rr);
+  setMotorSpeed(0, m1);
+  setMotorSpeed(1, m2);
+  setMotorSpeed(2, m3);
+  setMotorSpeed(3, m4);
 }
 
 void stopMotion() {

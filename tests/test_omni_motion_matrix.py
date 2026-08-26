@@ -19,7 +19,7 @@ def test_robot_mega_uses_explicit_omni_motor_matrix():
 
 
 def test_legacy_robot_sketch_keeps_the_same_omni_matrix():
-    source = _read_firmware("arduino/robot.ino")
+    source = _read_firmware("arduino/robot/robot.ino")
 
     assert "const float motor1 = vx + vy + wz;" in source
     assert "const float motor2 = vx - vy - wz;" in source

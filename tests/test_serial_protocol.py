@@ -9,6 +9,22 @@ from raspberry.communication import SerialTransport
 
 
 class SerialProtocolTests(unittest.TestCase):
+    def test_new_move_replaces_older_pending_move(self) -> None:
+        transport = SerialTransport()
+        transport.send_command("MOVE,180,0,20")
+        transport.send_command("HEARTBEAT")
+        transport.send_command("MOVE,150,0,-10")
+
+        self.assertEqual(transport._command_queue.get_nowait(), "HEARTBEAT")
+        self.assertEqual(transport._command_queue.get_nowait(), "MOVE,150,0,-10")
+
+    def test_stop_removes_pending_moves(self) -> None:
+        transport = SerialTransport()
+        transport.send_command("MOVE,180,0,20")
+        transport.send_command("STOP")
+
+        self.assertEqual(transport._command_queue.get_nowait(), "STOP")
+
     def test_heartbeat_is_sent_immediately(self) -> None:
         transport = SerialTransport(heartbeat_interval=1.0)
 

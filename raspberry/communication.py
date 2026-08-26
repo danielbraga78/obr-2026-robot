@@ -53,6 +53,17 @@ class SerialTransport:
     def send_command(self, command: str) -> None:
         if not command:
             return
+        normalized = command.strip().upper()
+        if normalized.startswith("MOVE,") or normalized == "STOP":
+            # O controle produz um MOVE a cada ciclo. Com uma reconexão ou uma
+            # escrita lenta, executar todos os comandos acumulados transforma
+            # uma leitura atual em uma sequência de correções antigas. STOP
+            # tambem precisa passar na frente de movimentos ja acumulados.
+            with self._command_queue.mutex:
+                self._command_queue.queue = type(self._command_queue.queue)(
+                    item for item in self._command_queue.queue
+                    if not item.strip().upper().startswith("MOVE,")
+                )
         try:
             self._command_queue.put_nowait(command)
         except queue.Full:

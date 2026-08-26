@@ -45,12 +45,12 @@ class MotorOrientationTests(unittest.TestCase):
         ):
             self.assertEqual(normalize_motor_command("MOVE,180,0,40"), "MOVE,180,0,40")
 
-    def test_inverted_camera_rotates_linear_command_axes(self):
+    def test_inverted_camera_does_not_invert_command_twice(self):
         with patch("raspberry.motion.CAMERA_INVERTED", True), patch(
             "raspberry.motion.CURVE_CORRECTION", 1.0
         ):
-            self.assertEqual(normalize_motor_command("MOVE,180,0,40"), "MOVE,-180,0,40")
-            self.assertEqual(normalize_motor_command("MOVE,0,150,0"), "MOVE,0,-150,0")
+            self.assertEqual(normalize_motor_command("MOVE,180,0,40"), "MOVE,180,0,40")
+            self.assertEqual(normalize_motor_command("MOVE,0,150,0"), "MOVE,0,150,0")
 
     def test_curve_correction_scales_turning_component_symmetrically(self):
         # CAMERA_INVERTED precisa valer para todos os blocos: sem isso os

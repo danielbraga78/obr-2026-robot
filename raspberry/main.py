@@ -32,7 +32,7 @@ from raspberry.preview import PreviewWindow
 from raspberry.state_machine import RobotStateMachine
 from raspberry.strategy import Strategy
 from raspberry.runtime import ExecutionLoopController
-from raspberry.motion import normalize_motor_command
+from raspberry.motion import _wheel_speeds, normalize_motor_command
 from raspberry.states.alignment import AlignBallState
 from raspberry.telemetry import format_arduino_payload
 from raspberry.states.avoid_obstacle import AvoidObstacleState
@@ -218,6 +218,15 @@ class RobotApp:
         """
         summary = format_arduino_payload(self.context, command)
         logger.debug("Visão detectada -> Arduino: %s", summary)
+        if command.startswith("MOVE,"):
+            try:
+                vx, vy, wz = (float(value) for value in command.split(",")[1:])
+                logger.debug(
+                    "motores finais: m1=%.1f m2=%.1f m3=%.1f m4=%.1f",
+                    *_wheel_speeds(vx, vy, wz),
+                )
+            except (ValueError, TypeError):
+                logger.debug("Comando MOVE invalido para telemetria: %s", command)
         now = self._now()
         if now - self._last_telemetry_log >= 1.0:
             self._last_telemetry_log = now

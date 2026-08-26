@@ -273,12 +273,12 @@ void stopAllMotors() {
 }
 
 void applyOmniMotion(float vx, float vy, float wz) {
-  const float frontLeft = vx + vy + wz;
-  const float frontRight = -vx + vy + wz;
-  const float rearLeft = -vx - vy + wz;
-  const float rearRight = vx - vy + wz;
+  const float motor1 = vx + vy + wz;
+  const float motor2 = vx - vy - wz;
+  const float motor3 = vx - vy + wz;
+  const float motor4 = vx + vy - wz;
 
-  const float maxAbs = max(max(abs(frontLeft), abs(frontRight)), max(abs(rearLeft), abs(rearRight)));
+  const float maxAbs = max(max(abs(motor1), abs(motor2)), max(abs(motor3), abs(motor4)));
   const float scale = (maxAbs > kMaxMotorSpeed) ? (kMaxMotorSpeed / maxAbs) : 1.0f;
 
   if (g_safetyStopActive) {
@@ -289,10 +289,10 @@ void applyOmniMotion(float vx, float vy, float wz) {
   // Ordem logica: 0 = frente esquerda, 1 = tras esquerda, 2 = frente direita,
   // 3 = tras direita. CONFERIR NA BANCADA com o motor_bench_test: a PCB numera
   // os conectores de J2 a J5 sem dizer qual roda e qual.
-  setMotorSpeed(0, static_cast<int>(frontLeft * scale));
-  setMotorSpeed(1, static_cast<int>(rearLeft * scale));
-  setMotorSpeed(2, static_cast<int>(frontRight * scale));
-  setMotorSpeed(3, static_cast<int>(rearRight * scale));
+  setMotorSpeed(0, static_cast<int>(motor1 * scale));
+  setMotorSpeed(1, static_cast<int>(motor2 * scale));
+  setMotorSpeed(2, static_cast<int>(motor3 * scale));
+  setMotorSpeed(3, static_cast<int>(motor4 * scale));
 }
 
 void stopMotion() {

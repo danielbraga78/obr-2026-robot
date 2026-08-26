@@ -28,14 +28,14 @@ def _format_component(value: float) -> str:
 
 def _wheel_speeds(vx: float, vy: float, wz: float) -> tuple[float, float, float, float]:
     """Mesma mistura omni do firmware, para prever o que cada roda receberia."""
-    front_left = vx + vy + wz
-    front_right = -vx + vy + wz
-    rear_left = -vx - vy + wz
-    rear_right = vx - vy + wz
+    motor1 = vx + vy + wz
+    motor2 = vx - vy - wz
+    motor3 = vx - vy + wz
+    motor4 = vx + vy - wz
 
-    largest = max(abs(front_left), abs(front_right), abs(rear_left), abs(rear_right))
+    largest = max(abs(motor1), abs(motor2), abs(motor3), abs(motor4))
     scale = (MOTOR_MAX_PWM / largest) if largest > MOTOR_MAX_PWM else 1.0
-    return (front_left * scale, front_right * scale, rear_left * scale, rear_right * scale)
+    return (motor1 * scale, motor2 * scale, motor3 * scale, motor4 * scale)
 
 
 def _is_expressible(vx: float, vy: float, wz: float) -> bool:
@@ -97,10 +97,13 @@ def fit_to_motor_deadband(vx: float, vy: float, wz: float) -> tuple[float, float
 
 
 def apply_motor_orientation(vx: float, vy: float, wz: float) -> tuple[float, float, float]:
-    """Converte movimento relativo à imagem para o referencial do robô."""
-    if not CAMERA_INVERTED:
-        return vx, vy, wz
-    return -vx, -vy, wz
+    """Mantém o movimento no referencial já corrigido pela câmera.
+
+    `CameraManager.read_frame()` já gira o quadro 180 graus quando
+    `CAMERA_INVERTED` está ativo. Inverter os eixos novamente aqui fazia a
+    correção calculada na imagem ser enviada para o lado oposto.
+    """
+    return vx, vy, wz
 
 
 def normalize_motor_command(command: str) -> str:

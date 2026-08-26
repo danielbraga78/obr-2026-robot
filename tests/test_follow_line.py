@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from raspberry.config import BASE_SPEED, LINE_LOST_GRACE_CYCLES, MAX_STEER, MIN_SPEED, RobotContext
+from raspberry.motion import _wheel_speeds, normalize_motor_command
 from raspberry.states.follow_line import FollowLineState
 from raspberry.vision.line_detector import LineDetection
 
@@ -22,7 +23,7 @@ def run_state(detection, cycles: int = 1):
 def parse_move(command: str):
     parts = command.split(",")
     assert parts[0] == "MOVE", command
-    return int(parts[1]), int(parts[2]), int(parts[3])
+    return float(parts[1]), float(parts[2]), float(parts[3])
 
 
 class FollowLineTests(unittest.TestCase):
@@ -53,6 +54,33 @@ class FollowLineTests(unittest.TestCase):
 
         self.assertLess(left_wz, 0)
         self.assertGreater(right_wz, 0)
+
+    def test_extreme_errors_keep_expected_motor_differential(self):
+        left = run_state(LineDetection(center_x=0.0, error=-160.0, confidence=0.9, frame_width=320))
+        right = run_state(LineDetection(center_x=320.0, error=160.0, confidence=0.9, frame_width=320))
+
+        left_wheels = _wheel_speeds(*map(float, parse_move(normalize_motor_command(left.command))))
+        right_wheels = _wheel_speeds(*map(float, parse_move(normalize_motor_command(right.command))))
+
+        self.assertLess(left_wheels[0], left_wheels[1])
+        self.assertLess(left_wheels[2], left_wheels[3])
+        self.assertGreater(right_wheels[0], right_wheels[1])
+        self.assertGreater(right_wheels[2], right_wheels[3])
+
+    def test_rapidly_alternating_error_reverses_steering_without_stale_command(self):
+        state = FollowLineState()
+        context = RobotContext()
+        commands = []
+        for error in (-100.0, 100.0, -100.0, 100.0):
+            context.last_detections = {
+                "line": LineDetection(center_x=160.0 + error, error=error, confidence=0.9, frame_width=320)
+            }
+            commands.append(parse_move(state.execute(context, None, {}).command)[2])
+
+        self.assertLess(commands[0], 0)
+        self.assertGreater(commands[1], 0)
+        self.assertLess(commands[2], 0)
+        self.assertGreater(commands[3], 0)
 
     def test_steering_never_exceeds_max_steer(self):
         result = run_state(LineDetection(center_x=320.0, error=160.0, confidence=0.9, frame_width=320), cycles=50)

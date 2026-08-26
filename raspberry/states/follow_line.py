@@ -1,3 +1,5 @@
+import logging
+
 from ..config import (
     BASE_SPEED,
     LINE_CORNER_BYPASSES_FILTER,
@@ -14,6 +16,9 @@ from ..config import (
 )
 from ..pid import PIDController
 from ..state_machine import StateResult
+
+
+logger = logging.getLogger(__name__)
 
 
 class FollowLineState:
@@ -72,6 +77,19 @@ class FollowLineState:
         self._last_steering = steering
         speed = self._speed_for(steering, corner)
         command = f"MOVE,{speed},0,{int(round(steering))}"
+        logger.debug(
+            "linha: center=%s near=%s far=%s erro_px=%.1f erro_norm=%.3f "
+            "heading=%.3f corner=%s steering=%.1f speed=%d",
+            detection.center_x,
+            detection.near_x,
+            detection.far_x,
+            float(detection.error),
+            error,
+            getattr(detection, "heading", 0.0),
+            corner,
+            steering,
+            speed,
+        )
         context.line_center = detection.center_x
         return StateResult(command=command, next_state="FOLLOW_LINE", log_message="Seguindo linha")
 
