@@ -137,8 +137,10 @@ class RobotApp:
         # Lock para evitar race conditions entre vision_thread e main loop
         self._frame_lock = threading.Lock()
         self._last_telemetry_log = 0.0
+        self._last_telemetry_debug_log = 0.0  # Throttle DEBUG telemetry a ~5x/s (200ms intervalo)
         self._vision_fps = 0.0
         self._last_capture_at = None
+        self._last_heartbeat_call = 0.0  # Throttle heartbeat a ~6x/s (167ms intervalo)
         self.preview = PreviewWindow()
         logger.info("Câmera: %s | %s", self.camera.describe(), self.preview.describe_status())
         self.loop_controller = ExecutionLoopController(
@@ -156,11 +158,17 @@ class RobotApp:
                 with self._frame_lock:
                     current_frame = self.last_frame
                 mask = getattr(self.detectors["line"], "last_mask", None) if self.preview.show_mask else None
-                self.preview.render(current_frame, self.context, self.context.last_command, self._preview_stats(), mask)
-                if self.preview.quit_requested:
-                    logger.info("Encerramento solicitado pela janela de preview")
-                    self._stop_event.set()
-                self.serial.send_heartbeat()
+                # Renderizar preview apenas se estiver habilitado, evitando chamada de função quando desligado
+                if self.preview.is_enabled():
+                    self.preview.render(current_frame, self.context, self.context.last_command, self._preview_stats(), mask)
+                    if self.preview.quit_requested:
+                        logger.info("Encerramento solicitado pela janela de preview")
+                        self._stop_event.set()
+                # Heartbeat throttled: ~6x/s (167ms intervalo) ao invés de 20x/s
+                now = self._now()
+                if now - self._last_heartbeat_call >= 0.167:
+                    self.serial.send_heartbeat()
+                    self._last_heartbeat_call = now
                 loop_latency_ms = (self.loop_controller.wait_for_next_cycle(cycle_start) - cycle_start) * 1000.0
                 self.loop_controller.record_latency(loop_latency_ms)
             except Exception as exc:
@@ -218,21 +226,25 @@ class RobotApp:
     def _log_telemetry(self, command: str) -> None:
         """Registra o resumo visão->Arduino.
 
-        O loop roda a 20 Hz; escrever em stdout a cada comando inunda o console e
-        adiciona latência ao controle. INFO sai no máximo 1x/s, DEBUG sai sempre.
+        O loop roda a 20 Hz. DEBUG sai a ~5x/s (200ms), INFO sai no máximo 1x/s,
+        para não inundar o console e adicionar latência ao controle.
         """
         summary = format_arduino_payload(self.context, command)
-        logger.debug("Visão detectada -> Arduino: %s", summary)
-        if command.startswith("MOVE,"):
-            try:
-                vx, vy, wz = (float(value) for value in command.split(",")[1:])
-                logger.debug(
-                    "motores finais: m1=%.1f m2=%.1f m3=%.1f m4=%.1f",
-                    *_wheel_speeds(vx, vy, wz),
-                )
-            except (ValueError, TypeError):
-                logger.debug("Comando MOVE invalido para telemetria: %s", command)
         now = self._now()
+        # Throttle DEBUG telemetry a ~5x/s (200ms intervalo)
+        if now - self._last_telemetry_debug_log >= 0.2:
+            logger.debug("Visão detectada -> Arduino: %s", summary)
+            if command.startswith("MOVE,"):
+                try:
+                    vx, vy, wz = (float(value) for value in command.split(",")[1:])
+                    logger.debug(
+                        "motores finais: m1=%.1f m2=%.1f m3=%.1f m4=%.1f",
+                        *_wheel_speeds(vx, vy, wz),
+                    )
+                except (ValueError, TypeError):
+                    logger.debug("Comando MOVE invalido para telemetria: %s", command)
+            self._last_telemetry_debug_log = now
+        # INFO telemetry: máximo 1x/s (já existente)
         if now - self._last_telemetry_log >= 1.0:
             self._last_telemetry_log = now
             logger.info("Visão detectada -> Arduino: %s", summary)

@@ -116,7 +116,7 @@ class SerialTransport:
                 self._drain_command_queue()
                 self._read_available_messages()
                 self._check_watchdog()
-                time.sleep(0.01)
+                time.sleep(0.025)  # Aumentado de 10ms para 25ms (conservador) para reduzir CPU
             except Exception as exc:
                 logger.debug("Erro na camada serial: %s", exc)
                 self._set_connected(False)
