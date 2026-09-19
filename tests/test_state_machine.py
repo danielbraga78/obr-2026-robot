@@ -53,7 +53,23 @@ class RobotStateMachineTests(unittest.TestCase):
         result = machine.run_once(RobotContext(), None, {}, strategy_next_state="FINISH")
 
         self.assertEqual(machine.current_state, "FINISH")
-        self.assertEqual(result.next_state, "FOLLOW_LINE")
+        self.assertIsNone(result.next_state)
+
+    def test_decision_command_overrides_state_command(self):
+        class Decision:
+            next_state = "FINISH"
+            command = "STOP"
+
+        machine = RobotStateMachine({
+            "BOOT": DummyState(StateResult(command="MOVE,180,0,0", next_state="FOLLOW_LINE")),
+            "FINISH": DummyState(StateResult(command="STOP")),
+        })
+        machine.transition_to("BOOT")
+
+        result = machine.run_once(RobotContext(), None, {}, decision=Decision())
+
+        self.assertEqual(result.command, "STOP")
+        self.assertEqual(machine.current_state, "FINISH")
 
     def test_invalid_transitions_are_ignored(self):
         machine = RobotStateMachine({"BOOT": DummyState(StateResult(command="STOP", next_state="INVALID"))})

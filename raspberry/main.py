@@ -52,7 +52,6 @@ from raspberry.vision.pipeline import VisionPipeline
 from raspberry.vision.rescue_detector import RescueDetector
 from raspberry.vision.safe_zone_detector import SafeZoneDetector
 from raspberry.ultrasonic import UltrasonicMonitor
-from competition.integration import CompetitionRuntimeAdapter
 
 # ROBOT_LOG_LEVEL=DEBUG mostra, entre outras coisas, cada linha vinda do Arduino.
 logging.basicConfig(level=os.environ.get("ROBOT_LOG_LEVEL", "INFO").upper(), format="[%(levelname)s] %(message)s")
@@ -109,7 +108,6 @@ class RobotApp:
         self.context.camera_ready = self.camera.is_ready()
         self.context.serial_ready = self.serial.is_connected()
         self.strategy = Strategy()
-        self.competition_adapter = CompetitionRuntimeAdapter()
         self.detectors = build_vision_detectors()
         self.vision_pipeline = VisionPipeline(detectors=self.detectors)
         self.machine = RobotStateMachine({
@@ -232,7 +230,7 @@ class RobotApp:
         summary = format_arduino_payload(self.context, command)
         now = self._now()
         # Throttle DEBUG telemetry a ~5x/s (200ms intervalo)
-        if now - self._last_telemetry_debug_log >= 0.2:
+        if now - getattr(self, "_last_telemetry_debug_log", 0.0) >= 0.2:
             logger.debug("Visão detectada -> Arduino: %s", summary)
             if command.startswith("MOVE,"):
                 try:
@@ -295,7 +293,7 @@ class RobotApp:
             self.context,
             current_frame,
             self.detectors,
-            strategy_next_state=decision.next_state,
+            decision=decision,
         )
         self.context.current_state = self.machine.current_state
         command = self._resolve_command(state_result)
@@ -304,16 +302,6 @@ class RobotApp:
             self.serial.send_command(command)
             self.context.last_command = command
             self._last_command_sent_at = self._now()
-        competition_adapter = getattr(self, "competition_adapter", None)
-        competition_command = (
-            competition_adapter.build_command(self.context, self.machine.current_state)
-            if competition_adapter is not None
-            else None
-        )
-        if competition_command and not state_result.command and command == "STOP":
-            competition_command = normalize_motor_command(competition_command)
-            self.serial.send_command(competition_command)
-            self.context.last_command = competition_command
         self.context.expire_temporal_signals()
 
     def _resolve_command(self, state_result) -> str:

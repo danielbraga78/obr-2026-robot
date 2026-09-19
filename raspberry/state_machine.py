@@ -22,20 +22,48 @@ class RobotStateMachine:
         if state_name in self.states:
             self.current_state = state_name
 
-    def _apply_transition(self, result_next_state: str | None, strategy_next_state: str | None) -> None:
-        if strategy_next_state is not None and strategy_next_state in self.states:
-            self.transition_to(strategy_next_state)
+    def _apply_transition(self, result_next_state: str | None, decision_next_state: str | None) -> None:
+        if decision_next_state is not None and decision_next_state in self.states:
+            self.transition_to(decision_next_state)
             return
         if result_next_state is not None and result_next_state in self.states:
             self.transition_to(result_next_state)
 
-    def run_once(self, context, frame, detectors, strategy_next_state: str | None = None) -> StateResult:
+    def run_once(
+        self,
+        context,
+        frame,
+        detectors,
+        decision=None,
+        strategy_next_state: str | None = None,
+    ) -> StateResult:
+        """Execute exactly one state under one explicit decision authority.
+
+        ``strategy_next_state`` remains as a compatibility argument for older
+        callers. New callers should pass the complete StrategyDecision through
+        ``decision`` so transition and command priority are applied together.
+        """
         if self.current_state not in self.states:
             # Fallback para BOOT se estado é inválido
             self.current_state = STATE_SEQUENCE[0]
             return StateResult(command="STOP", next_state=STATE_SEQUENCE[0], log_message="Estado inválido, resetando para BOOT")
 
+        decision_next_state = getattr(decision, "next_state", None)
+        decision_command = getattr(decision, "command", None)
+        if decision is None:
+            decision_next_state = strategy_next_state
+
         state = self.states[self.current_state]
+        state_name_before_execution = self.current_state
+        self._apply_transition(None, decision_next_state)
+        if self.current_state != state_name_before_execution:
+            state = self.states[self.current_state]
         result = state.execute(context, frame, detectors)
-        self._apply_transition(result.next_state, strategy_next_state)
+        self._apply_transition(result.next_state, None if decision_next_state is not None else strategy_next_state)
+        if decision_command is not None:
+            result = StateResult(
+                command=decision_command,
+                next_state=result.next_state,
+                log_message=result.log_message,
+            )
         return result
