@@ -1,11 +1,12 @@
 import unittest
+from pathlib import Path
 
 from competition.behavior_manager import BehaviorManager
 from competition.config import load_config
 from competition.navigation.navigator import Navigator
 from competition.world_model import WorldModel
 
-REPO_ROOT = "/home/leosouza/Desktop/robot-OBR/2026/teste"
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class CompetitionArchitectureTests(unittest.TestCase):
@@ -26,7 +27,7 @@ class CompetitionArchitectureTests(unittest.TestCase):
         self.assertEqual(cmd, "MOVE,20,0,0")
 
     def test_config_loader_reads_yaml(self) -> None:
-        config = load_config(f"{REPO_ROOT}/competition/config/default.yaml")
+        config = load_config(str(REPO_ROOT / "competition" / "config" / "default.yaml"))
         self.assertIn("competition", config)
         self.assertEqual(config["competition"]["mission"], "rescue")
 

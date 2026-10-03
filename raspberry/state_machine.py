@@ -48,22 +48,28 @@ class RobotStateMachine:
             self.current_state = STATE_SEQUENCE[0]
             return StateResult(command="STOP", next_state=STATE_SEQUENCE[0], log_message="Estado inválido, resetando para BOOT")
 
-        decision_next_state = getattr(decision, "next_state", None)
-        decision_command = getattr(decision, "command", None)
-        if decision is None:
-            decision_next_state = strategy_next_state
+        decision_next_state = getattr(decision, "next_state", None) if decision is not None else None
+        decision_command = getattr(decision, "command", None) if decision is not None else None
+        override_next_state = decision_next_state if decision is not None else strategy_next_state
 
         state = self.states[self.current_state]
         state_name_before_execution = self.current_state
-        self._apply_transition(None, decision_next_state)
-        if self.current_state != state_name_before_execution:
-            state = self.states[self.current_state]
+        if override_next_state is not None and override_next_state in self.states:
+            self.transition_to(override_next_state)
+            if self.current_state != state_name_before_execution:
+                state = self.states[self.current_state]
+
         result = state.execute(context, frame, detectors)
-        self._apply_transition(result.next_state, None if decision_next_state is not None else strategy_next_state)
-        if decision_command is not None:
+
+        if override_next_state is not None and override_next_state in self.states:
             result = StateResult(
-                command=decision_command,
-                next_state=result.next_state,
+                command=decision_command if decision_command is not None else result.command,
+                next_state=None,
                 log_message=result.log_message,
             )
+            return result
+
+        if result.next_state is not None and result.next_state in self.states:
+            self.transition_to(result.next_state)
+
         return result
