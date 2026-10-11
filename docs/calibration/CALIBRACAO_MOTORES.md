@@ -119,6 +119,42 @@ Esses valores calibram a simulação dos PWMs no Raspberry; eles não medem
 velocidade física e precisam ser atualizados junto com o firmware. O mapeamento
 não decide sozinho que uma curva deve virar pivô.
 
+## Sketch autônomo de calibração
+
+Também é possível usar `arduino/tests/motor_calibration_test/` para levantar
+os valores pelo Monitor Serial. Esse sketch é exclusivo da Mega 2560 com a PCB
+e os pinos deste documento; carregá-lo substitui temporariamente o firmware do
+robô. Regrave `arduino/firmware/robot_mega_pcb/robot_mega_pcb.ino` depois da
+calibração.
+
+Abra o Monitor Serial em **115200 baud**, final de linha **Nova linha**. Os
+motores usam a ordem lógica do firmware e os conectores J3, J2, J5 e J4. Como
+não há encoder nessa rotina, os testes de ganho e velocidade máxima dependem
+de contar voltas manualmente:
+
+1. **Duty mínimo:** com o robô no chão, use `RUN,<motor>,<duty>` para testar
+   duties em passos de 5. Quando a roda daquele motor girar continuamente,
+   registre o valor com `MIN,<motor>,<duty>`.
+2. **Ganho:** suspenda o robô e marque cada roda. Envie `GAIN,<motor>` uma vez
+   por motor, conte as voltas durante os 10 segundos e informe
+   `COUNT,<voltas>` quando o teste parar. O duty de teste é 200.
+3. **Velocidade máxima:** ainda suspenso, envie `MAX,<motor>`, conte as voltas
+   nos 10 segundos e informe `COUNT,<voltas>`. O teste usa duty 255 e exibe a
+   velocidade medida em RPM; esse RPM é informativo e não altera o limite de
+   duty do firmware.
+4. Envie `SUMMARY` para imprimir `kMotorMinDuty` e `kMotorGain` quando os
+   quatro mínimos e os quatro testes de ganho estiverem registrados. Os
+   resultados ficam apenas na RAM e são perdidos ao reiniciar.
+
+`STOP` interrompe o motor e cancela um teste pendente. `RUN` para sozinho após
+30 segundos; os testes `GAIN` e `MAX` param automaticamente após 10 segundos.
+Antes de começar, confirme a alimentação e a corrente dos motores, o terra
+comum e STBY em HIGH. Na PCB, J1.2 alimenta VM e VCC: confirme com multímetro
+que essa rede não excede 5 V antes de energizar, conforme
+`docs/hardware/HARDWARE.md`. Só execute `MAX`/duty 255 depois de confirmar que
+a tensão e a corrente dos motores estão dentro dos limites do motor e do
+TB6612FNG. Nunca conecte VM diretamente ao pino de 5 V do Arduino.
+
 ## Verificação
 
 1. **Reta:** `MOVE,180,0,0` por 2 metros. O desvio lateral deve ficar abaixo de
