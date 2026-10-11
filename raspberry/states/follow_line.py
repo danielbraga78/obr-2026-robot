@@ -30,9 +30,10 @@ class FollowLineState:
         self._last_corner_side = 0
 
     def execute(self, context, frame, detectors) -> StateResult:
+        if getattr(context, "line_controller_reset", False):
+            self._reset()
+            context.line_controller_reset = False
         detection = context.last_detections.get("line") if getattr(context, "last_detections", None) else None
-        if detection is None and frame is not None:
-            detection = detectors["line"].detect(frame)
         if detection is None:
             self._lost_cycles = LINE_LOST_GRACE_CYCLES + 1
         elif detection.error is None:
@@ -47,6 +48,9 @@ class FollowLineState:
                     next_state="FOLLOW_LINE",
                     log_message="Leitura de linha perdida temporariamente",
                 )
+            context.line_recovery_direction = self._recovery_direction()
+            context.line_search_after_sequence = getattr(context, "line_observation_sequence", 0)
+            context.line_search_started = False
             self._reset()
             return StateResult(command="STOP", next_state="SEARCH_LINE", log_message="Linha perdida")
 
@@ -60,7 +64,6 @@ class FollowLineState:
         elif abs(error) < 0.15:
             self._last_corner_side = 0
 
-
         # O filtro suaviza o ruído do centroide, mas atrasa a reação em cerca de
         # três quadros. Numa curva fechada esse atraso é o suficiente para o robô
         # passar reto, então ali o erro entra cru.
@@ -68,10 +71,15 @@ class FollowLineState:
             error = (LINE_ERROR_FILTER_ALPHA * error) + ((1.0 - LINE_ERROR_FILTER_ALPHA) * self._last_error)
         self._last_error = error
 
-        steering = STEER_SIGN * self.pid.update(error)
         # Termo antecipativo: o rumo da linha adiante entra antes que ela saia do
         # centro. É a diferença entre reagir à curva e antecipá-la.
-        steering += STEER_SIGN * LINE_HEADING_GAIN * getattr(detection, "heading", 0.0)
+        heading_steering = STEER_SIGN * LINE_HEADING_GAIN * getattr(detection, "heading", 0.0)
+        derivative_limit = abs(heading_steering) * 0.5 if heading_steering else None
+        steering = STEER_SIGN * self.pid.update(
+            error,
+            derivative_output_limit=derivative_limit,
+        )
+        steering += heading_steering
         steering = max(-MAX_STEER, min(MAX_STEER, steering))
 
         self._last_steering = steering
@@ -109,6 +117,13 @@ class FollowLineState:
         self._last_error = 0.0
         self._last_steering = 0.0
         self._last_corner_side = 0
+
+    def _recovery_direction(self) -> int:
+        if self._last_corner_side:
+            return self._last_corner_side
+        if self._last_steering:
+            return 1 if self._last_steering > 0 else -1
+        return 0
 
     def _normalized_error(self, detection) -> float:
         """Converte o erro em pixels para -1.0..1.0 (borda esquerda a borda direita)."""

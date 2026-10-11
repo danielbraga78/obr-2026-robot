@@ -55,9 +55,9 @@ PREVIEW_SHOW_OVERLAY = True  # Desenha ROI, linha detectada, estado e comando
 # ============================================================================
 VISION_PROCESS_WIDTH = 320
 VISION_PROCESS_HEIGHT = 240
-# (x0, y0, x1, y1) normalizados. Para seguir linha usamos só a faixa inferior do
-# quadro: é a parte da pista logo à frente do robô. Usar o quadro inteiro mistura
-# a linha próxima com curvas distantes e distorce o erro do PID.
+# (x0, y0, x1, y1) normalizados. O perfil "near" fica disponível para sensores
+# que precisam da pista próxima; o detector de linha usa "full" para enxergar
+# a aproximação de curvas antes que elas saiam do campo próximo.
 VISION_ROI = (0.0, 0.55, 1.0, 1.0)
 MAX_FRAME_AGE = 0.25
 VISION_FRAME_TIMEOUT = MAX_FRAME_AGE  # Compatibilidade com integrações existentes
@@ -146,10 +146,18 @@ PID_KP = 60.0
 PID_KI = 0.2
 PID_KD = 18.0
 PID_INTEGRAL_LIMIT = 100.0
-PID_DERIVATIVE_FILTER_ALPHA = 0.0
+PID_DERIVATIVE_FILTER_ALPHA = 0.25  # Peso da amostra derivativa nova (0=sem filtro, 1=sem suavização)
 MAX_STEER = 80  # Autoridade máxima de giro (PWM)
 LINE_ERROR_FILTER_ALPHA = 0.35  # Peso do erro novo; reduz oscilações frame a frame
 LINE_LOST_GRACE_CYCLES = 3  # Leituras inválidas toleradas antes de parar (~150 ms a 20 Hz)
+LINE_RECOVERY_CONFIRM_OBSERVATIONS = 3
+LINE_RECOVERY_MAX_ERROR_DELTA = 0.2  # Variação máxima do erro normalizado entre observações
+LINE_SEARCH_INITIAL_DIRECTION = 1  # Convenção de sinal do software; calibrar no chassi
+LINE_SEARCH_TURN_PWM = 110
+LINE_SEARCH_PULSE_SECONDS = 0.12
+LINE_SEARCH_PAUSE_SECONDS = 0.08
+LINE_SEARCH_MAX_PULSES = 6
+LINE_SEARCH_TIMEOUT_SECONDS = 1.3
 
 # ---------------------------------------------------------------------------
 # Antecipação de curva
@@ -164,8 +172,9 @@ LINE_FAR_BAND = 0.35  # Fração superior usada como rumo adiante
 LINE_BAND_MIN_PIXELS = 20  # Pixels mínimos na faixa para o centroide valer
 LINE_HEADING_GAIN = 45.0  # Peso do termo antecipativo, em PWM por unidade de rumo
 LINE_CORNER_HEADING = 0.35  # Acima disso a curva é fechada: vira manobra
-# Medido em cena sintética: uma curva de 90 graus dá rumo entre 0,43 e 0,50,
-# e uma diagonal suave fica abaixo de 0,25.
+# Para mudanças próximas à borda, a geometria em L (faixa vertical perto e
+# horizontal longe) complementa o limiar principal sem baixar o corte de rumo.
+LINE_CORNER_MIN_HEADING = 0.2
 # Numa curva fechada o filtro do erro atrapalha: ele atrasa a reação em ~3
 # quadros, tempo suficiente para o robô passar reto pela curva.
 LINE_CORNER_BYPASSES_FILTER = True
@@ -181,18 +190,15 @@ SEARCH_SAFE_ZONE_SPEED = 110
 ALIGNMENT_SPEED = 110
 ALIGNMENT_TOLERANCE = 0.15
 CONTROL_LOOP_HZ = 20.0
-CURVE_CORRECTION = 1.25  # Multiplicador da autoridade de curva (wz)
+CURVE_CORRECTION = 1.0  # O vetor de movimento não é alterado implicitamente
 
-# Zona morta dos motores: abaixo deste PWM a roda não vence o atrito e o
-# firmware não consegue expressar o comando. Precisa espelhar kMinMotorSpeed do
-# robot_mega.ino. Quando um comando cairia nessa faixa, a translação é reduzida
-# até que todas as rodas fiquem em zero ou acima do mínimo — numa curva fechada
-# isso transforma sozinho o avanço em pivô, que é o que a curva pede.
+# Espelhar os limites efetivamente gravados no firmware. Na PCB, usar os valores
+# da tabela CAL e os ganhos correspondentes; a física dos motores não é inferida
+# pelo software.
 MOTOR_DEADBAND_PWM = 110
+MOTOR_MIN_PWM = (110, 110, 110, 110)
+MOTOR_PWM_GAINS = (1.0, 1.0, 1.0, 1.0)
 MOTOR_MAX_PWM = 255
-# Abaixo disto o comando é ajuste fino demais para os motores: não vale ampliar
-# nem virar pivô, porque elevá-lo ao mínimo seria um solavanco pior que ignorar.
-MOTOR_MIN_MEANINGFUL_PWM = 30
 STEER_SIGN = 1.0  # Use -1.0 se o robô virar para o lado errado
 
 # ============================================================================
@@ -260,6 +266,13 @@ class RobotContext:
     camera_ready: bool = False
     serial_ready: bool = False
     last_detections: dict = field(default_factory=dict)
+    line_observation_sequence: int = 0
+    line_observation_at: Optional[float] = None
+    line_recovery_direction: int = LINE_SEARCH_INITIAL_DIRECTION
+    line_controller_reset: bool = False
+    line_search_after_sequence: int = 0
+    line_search_started: bool = False
+    control_time: float = 0.0
     _temporal_flags: Dict[str, float] = field(default_factory=dict)
     _event_timestamps: Dict[str, float] = field(default_factory=dict)
 

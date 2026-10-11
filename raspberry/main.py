@@ -130,6 +130,7 @@ class RobotApp:
         self.last_frame = None
         self.last_frame_at = None
         self._last_vision_result_at = None
+        self._last_vision_capture_at = None
         self._last_command_sent_at = None
         self._now = time.monotonic
         # Lock para evitar race conditions entre vision_thread e main loop
@@ -266,24 +267,25 @@ class RobotApp:
         self.context.ball_detected = ball is not None
         if ball is not None:
             self.context.ball_distance = getattr(ball, "distance", None)
+        self.context.line_observation_sequence += 1
+        self.context.line_observation_at = result.captured_at
         self.context.expire_temporal_signals()
 
     def _process_cycle(self) -> None:
+        now = self._now()
+        self.context.control_time = now
         self.context.camera_ready = self.camera.is_ready()
         self.context.serial_ready = self.serial.is_connected()
         self._process_messages()
         self._ensure_sensors_armed()
-        try:
-            result = self.result_queue.get_nowait()
-        except queue.Empty:
-            result = None
+        result = self._latest_fresh_vision_result(now)
         with self._frame_lock:
             current_frame = self.last_frame
-        if result is not None and self.loop_controller.is_result_stale(result.captured_at):
-            result = None
         if result is not None:
             self._update_context_from_result(result)
-            self._last_vision_result_at = self._now()
+            self._last_vision_capture_at = result.captured_at
+            # Compatibilidade para integrações que consultam o nome anterior.
+            self._last_vision_result_at = result.captured_at
         elif self._is_vision_context_stale():
             self._clear_vision_context()
 
@@ -304,6 +306,25 @@ class RobotApp:
             self._last_command_sent_at = self._now()
         self.context.expire_temporal_signals()
 
+    def _latest_fresh_vision_result(self, now: float):
+        newest = None
+        while True:
+            try:
+                candidate = self.result_queue.get_nowait()
+            except queue.Empty:
+                break
+            captured_at = getattr(candidate, "captured_at", None)
+            if self.loop_controller.is_result_stale(captured_at, now=now):
+                continue
+            if (
+                self._last_vision_capture_at is not None
+                and captured_at <= self._last_vision_capture_at
+            ):
+                continue
+            if newest is None or captured_at > newest.captured_at:
+                newest = candidate
+        return newest
+
     def _resolve_command(self, state_result) -> str:
         if state_result is not None and state_result.command:
             return normalize_motor_command(state_result.command)
@@ -319,12 +340,14 @@ class RobotApp:
         )
 
     def _is_vision_context_stale(self) -> bool:
-        if self._last_vision_result_at is None:
-            return False
-        return self._now() - self._last_vision_result_at > self.loop_controller.max_frame_age
+        if self._last_vision_capture_at is None:
+            return True
+        age = self._now() - self._last_vision_capture_at
+        return age < 0.0 or age > self.loop_controller.max_frame_age
 
     def _clear_vision_context(self) -> None:
         self.context.last_detections = {}
+        self.context.line_center = None
         self.context.rescue_detected = False
         self.context.safe_zone_detected = False
         self.context.ball_detected = False

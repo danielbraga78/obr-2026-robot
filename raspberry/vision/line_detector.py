@@ -7,6 +7,7 @@ import numpy as np
 from ..config import (
     LINE_BAND_MIN_PIXELS,
     LINE_CORNER_HEADING,
+    LINE_CORNER_MIN_HEADING,
     LINE_FAR_BAND,
     LINE_MAX,
     LINE_MAX_COVERAGE,
@@ -37,9 +38,9 @@ class LineDetection:
 class LineDetector:
     """Detecta a linha principal, por limiar adaptativo ou por faixa HSV fixa."""
 
-    # A faixa logo à frente do robô. Usar o quadro inteiro misturaria a linha
-    # próxima com curvas distantes e distorceria o erro do PID.
-    roi_profile = "near"
+    # A posição próxima define o erro; o quadro completo preserva a geometria
+    # distante necessária para antecipar uma curva.
+    roi_profile = "full"
 
     def __init__(self, mode: str = LINE_THRESHOLD_MODE) -> None:
         self.mode = mode
@@ -68,7 +69,23 @@ class LineDetector:
         if not contours:
             return LineDetection(frame_width=width, threshold=threshold, coverage=coverage, reason="nenhum contorno")
 
-        largest = max(contours, key=cv2.contourArea)
+        near_start = int((1.0 - LINE_NEAR_BAND) * mask.shape[0])
+        near_contours = []
+        for contour in contours:
+            x, y, contour_width, contour_height = cv2.boundingRect(contour)
+            if y + contour_height <= near_start:
+                continue
+            contour_mask = np.zeros(mask.shape, dtype=np.uint8)
+            cv2.drawContours(contour_mask, [contour], -1, 255, thickness=cv2.FILLED)
+            near_support = int(np.count_nonzero(contour_mask[near_start:]))
+            if near_support >= LINE_BAND_MIN_PIXELS:
+                near_contours.append((near_support, cv2.contourArea(contour), contour))
+
+        largest = (
+            max(near_contours, key=lambda item: (item[0], item[1]))[2]
+            if near_contours
+            else max(contours, key=cv2.contourArea)
+        )
         area = cv2.contourArea(largest)
         frame_area = float(mask.shape[0] * mask.shape[1])
         contour_coverage = area / frame_area
@@ -100,7 +117,12 @@ class LineDetector:
         heading = 0.0
         if near_x is not None and far_x is not None:
             heading = max(-1.0, min(1.0, (far_x - near_x) / half_width))
-        corner = abs(heading) >= LINE_CORNER_HEADING
+        near_vertical, far_horizontal = self._corner_shape(line_mask)
+        corner = abs(heading) >= LINE_CORNER_HEADING or (
+            near_vertical
+            and far_horizontal
+            and abs(heading) >= LINE_CORNER_MIN_HEADING
+        )
 
         confidence = min(1.0, area / 10000.0)
         return LineDetection(
@@ -131,6 +153,25 @@ class LineDetector:
         if total <= 0:
             return None
         return float((columns * np.arange(band.shape[1])).sum() / total)
+
+    @staticmethod
+    def _corner_shape(line_mask: np.ndarray) -> tuple[bool, bool]:
+        """Detecta um L por orientação distinta nas bandas perto e longe."""
+        height = line_mask.shape[0]
+        near_start = int((1.0 - LINE_NEAR_BAND) * height)
+        far_end = max(1, int(LINE_FAR_BAND * height))
+
+        def spans(region: np.ndarray) -> tuple[int, int]:
+            rows, columns = np.nonzero(region)
+            if rows.size < LINE_BAND_MIN_PIXELS:
+                return 0, 0
+            return int(columns.max() - columns.min() + 1), int(rows.max() - rows.min() + 1)
+
+        near_width, near_height = spans(line_mask[near_start:])
+        far_width, far_height = spans(line_mask[:far_end])
+        near_vertical = near_height >= 1.5 * max(near_width, 1)
+        far_horizontal = far_width >= 1.5 * max(far_height, 1)
+        return near_vertical, far_horizontal
 
     def _build_mask(self, hsv: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[float], Optional[str]]:
         if self.mode == "hsv":

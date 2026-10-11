@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from raspberry.communication import SerialTransport
 
@@ -21,9 +21,20 @@ class SerialProtocolTests(unittest.TestCase):
     def test_stop_removes_pending_moves(self) -> None:
         transport = SerialTransport()
         transport.send_command("MOVE,180,0,20")
+        transport.send_command("HEARTBEAT")
         transport.send_command("STOP")
 
         self.assertEqual(transport._command_queue.get_nowait(), "STOP")
+        self.assertTrue(transport._command_queue.empty())
+
+    def test_emergency_stop_preempts_all_pending_commands(self) -> None:
+        transport = SerialTransport()
+        transport.send_command("MOVE,180,0,20")
+        transport.send_command("HEARTBEAT")
+        transport.send_command("EMERGENCY_STOP")
+
+        self.assertEqual(transport._command_queue.get_nowait(), "EMERGENCY_STOP")
+        self.assertTrue(transport._command_queue.empty())
 
     def test_heartbeat_is_sent_immediately(self) -> None:
         transport = SerialTransport(heartbeat_interval=1.0)

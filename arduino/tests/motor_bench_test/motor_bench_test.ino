@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
 // Sketch de bancada para diagnosticar motores com multímetro e para levantar
-// os números da calibração (ver arduino/CALIBRACAO_MOTORES.md).
+// os números da calibração (ver docs/calibration/CALIBRACAO_MOTORES.md).
 //
 // Monitor serial: 115200 baud, terminação "Nova linha" ou "Ambos NL & CR".
 //
@@ -11,7 +11,7 @@
 // ===========================================================================
 // Qual montagem está no robô
 // ===========================================================================
-// true  = PCB (HARDWARE.md, secao de montagem com PCB), usado pelo robot_mega_pcb.ino
+// true  = PCB (docs/hardware/HARDWARE.md, secao de montagem com PCB), usado pelo robot_mega_pcb.ino
 // false = protoboard, usado pelo robot_mega.ino
 constexpr bool kUsePcbWiring = true;
 
@@ -119,8 +119,8 @@ void writeEnable(uint8_t motorIndex, uint8_t duty) {
 void applyOutput() {
   for (uint8_t i = 0; i < kMotorCount; ++i) {
     const bool active = (i == g_selected) && (g_direction != 0);
-    digitalWrite(g_channels[i].in1Pin, active && g_direction > 0 ? HIGH : LOW);
-    digitalWrite(g_channels[i].in2Pin, active && g_direction < 0 ? HIGH : LOW);
+    digitalWrite(g_channels[i].in1Pin, active && g_direction < 0 ? HIGH : LOW);
+    digitalWrite(g_channels[i].in2Pin, active && g_direction > 0 ? HIGH : LOW);
     writeEnable(i, active ? static_cast<uint8_t>(g_speed) : 0);
   }
 }
@@ -153,9 +153,9 @@ void printExpectations() {
     Serial.println(F("%)"));
 
     Serial.print(F("  Esperado: IN1 ~"));
-    Serial.print(g_direction > 0 ? kLogicVolts : 0.0f, 1);
+    Serial.print(g_direction < 0 ? kLogicVolts : 0.0f, 1);
     Serial.print(F(" V, IN2 ~"));
-    Serial.print(g_direction > 0 ? 0.0f : kLogicVolts, 1);
+    Serial.print(g_direction > 0 ? kLogicVolts : 0.0f, 1);
     Serial.print(F(" V, PWM ~"));
     Serial.print(kLogicVolts * g_speed / 255.0f, 1);
     Serial.println(F(" V (media do PWM)"));
@@ -186,7 +186,7 @@ void printHelp() {
   Serial.println(F("a MEDIA do PWM, entao valores intermediarios dao leituras"));
   Serial.println(F("baixas e isso e normal, nao e defeito."));
   Serial.println();
-  Serial.println(F("Para calibrar (ver arduino/CALIBRACAO_MOTORES.md):"));
+  Serial.println(F("Para calibrar (ver docs/calibration/CALIBRACAO_MOTORES.md):"));
   Serial.println(F("  1. Qual conector e qual roda: rode cada motor e observe."));
   Serial.println(F("  2. Duty minimo: com o robo NO CHAO, suba de 5 em 5 ate a"));
   Serial.println(F("     roda girar continuamente. No ar o valor sai errado."));

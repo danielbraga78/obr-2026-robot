@@ -31,4 +31,4 @@ else
   echo "  source $VENV_DIR/bin/activate"
 fi
 echo "Depois rode:"
-echo "  python3 -m unittest discover -s tests -q"
+echo "  python3 -m unittest discover -s raspberry/tests -q"

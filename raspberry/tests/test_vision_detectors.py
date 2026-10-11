@@ -13,7 +13,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from raspberry.main import build_vision_detectors
 from raspberry.vision.ball_detector import BLACK, SILVER, BallDetector

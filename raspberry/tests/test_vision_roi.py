@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from raspberry.config import VISION_ROI_PROFILES
 from raspberry.vision.ball_detector import BallDetector
@@ -73,7 +73,7 @@ class PerDetectorRoiTests(unittest.TestCase):
         self.assertEqual(detector.views[0].roi, (0.0, 0.0, 1.0, 1.0))
 
     def test_real_detectors_declare_the_expected_profiles(self):
-        self.assertEqual(LineDetector().roi_profile, "near")
+        self.assertEqual(LineDetector().roi_profile, "full")
         self.assertEqual(BallDetector().roi_profile, "full")
         self.assertEqual(SafeZoneDetector().roi_profile, "upper")
 

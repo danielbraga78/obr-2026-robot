@@ -2,7 +2,7 @@
 #include <Servo.h>
 
 // ===========================================================================
-// Sketch para Arduino Mega 2560 com a PCB (HARDWARE.md, secao "Montagem com a PCB customizada")
+// Sketch para Arduino Mega 2560 com a PCB (docs/hardware/HARDWARE.md, secao "Montagem com a PCB customizada")
 // ===========================================================================
 //
 // Variante do robot_mega.ino para a placa. O sketch original continua valido
@@ -18,7 +18,7 @@
 //
 // PROTOCOLO: identico ao robot_mega.ino, mais os comandos CAL de calibracao.
 
-// Pinagem de HARDWARE.md, com a topologia conferida contra o
+// Pinagem de docs/hardware/HARDWARE.md, com a topologia conferida contra o
 // netlist do Fritzing. Nenhum destes pinos de enable tem PWM de hardware.
 // A netlist nomeia os headers de motor apenas como "motor"; J2-J5 sao os
 // identificadores fisicos usados na placa e devem ser conferidos na serigrafia.
@@ -100,7 +100,7 @@ constexpr int kServoClosedAngle = 110;
 // Ordem: 0 = frente esquerda, 1 = tras esquerda, 2 = frente direita,
 //        3 = tras direita.
 //
-// Ver arduino/CALIBRACAO_MOTORES.md para o procedimento.
+// Ver docs/calibration/CALIBRACAO_MOTORES.md para o procedimento.
 constexpr uint8_t kMotorMinDuty[4] = {110, 110, 110, 110};
 constexpr float kMotorGain[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -115,10 +115,7 @@ constexpr float kMotorGain[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 // Custo: cerca de 8% da CPU. A escrita e feita direto no registrador da porta
 // porque digitalWrite (uns 5 us) nao caberia nos 32 us entre interrupcoes.
 //
-// Efeito colateral conhecido: pulseIn conta ciclos com as interrupcoes ligadas,
-// entao a medida do ultrassonico sai cerca de 8% maior enquanto o PWM por
-// software esta ativo. O fator 0.01715 abaixo compensa isso quando aferido com
-// o sensor apontado para um alvo em distancia conhecida.
+// A leitura do HC-SR04 e amostrada sem bloquear o loop que aplica movimento.
 
 volatile uint8_t g_softPwmDuty[4] = {0, 0, 0, 0};
 volatile uint8_t* g_softPwmPort[4] = {nullptr, nullptr, nullptr, nullptr};
@@ -148,6 +145,17 @@ unsigned long g_calibrationStartedMs = 0;
 bool g_ultrasonicEnabled = false;
 unsigned long g_lastUltrasonicMeasureMs = 0;
 constexpr unsigned long kUltrasonicMeasureIntervalMs = 100;  // 10 Hz
+constexpr size_t kSerialLineCapacity = 96;
+char g_usbLine[kSerialLineCapacity];
+char g_uartLine[kSerialLineCapacity];
+size_t g_usbLineLength = 0;
+size_t g_uartLineLength = 0;
+Stream* g_activeControlPort = &Serial;
+Stream* g_ultrasonicOutputPort = nullptr;
+bool g_ultrasonicWaitingForEcho = false;
+bool g_ultrasonicEchoStarted = false;
+unsigned long g_ultrasonicTriggerUs = 0;
+unsigned long g_ultrasonicEchoRiseUs = 0;
 
 Servo g_gripperServo;
 
@@ -326,14 +334,15 @@ void initUltrasonic() {
   digitalWrite(kUltrasonicTrigPin, LOW);
 }
 
-unsigned long measureUltrasonic() {
+void startUltrasonicMeasurement() {
   digitalWrite(kUltrasonicTrigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(kUltrasonicTrigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(kUltrasonicTrigPin, LOW);
-
-  return pulseIn(kUltrasonicEchoPin, HIGH, kUltrasonicTimeoutUs);
+  g_ultrasonicTriggerUs = micros();
+  g_ultrasonicWaitingForEcho = true;
+  g_ultrasonicEchoStarted = false;
 }
 
 void handleUltrasonic() {
@@ -341,19 +350,32 @@ void handleUltrasonic() {
     return;
   }
 
-  const unsigned long now = millis();
-  if (now - g_lastUltrasonicMeasureMs < kUltrasonicMeasureIntervalMs) {
+  if (!g_ultrasonicWaitingForEcho) {
+    const unsigned long now = millis();
+    if (now - g_lastUltrasonicMeasureMs >= kUltrasonicMeasureIntervalMs) {
+      g_lastUltrasonicMeasureMs = now;
+      startUltrasonicMeasurement();
+    }
     return;
   }
-  g_lastUltrasonicMeasureMs = now;
 
-  const unsigned long duration = measureUltrasonic();
-  if (duration > 0 && duration < kUltrasonicTimeoutUs) {
-    const float distanceCm = duration * 0.01715f;
-    if (distanceCm >= 2.0f && distanceCm <= 400.0f) {
-      Serial.print("DIST,");
-      Serial.println(distanceCm, 1);
+  const unsigned long nowUs = micros();
+  const bool echoHigh = digitalRead(kUltrasonicEchoPin) == HIGH;
+  if (!g_ultrasonicEchoStarted && echoHigh) {
+    g_ultrasonicEchoStarted = true;
+    g_ultrasonicEchoRiseUs = nowUs;
+  } else if (g_ultrasonicEchoStarted && !echoHigh) {
+    const unsigned long duration = nowUs - g_ultrasonicEchoRiseUs;
+    g_ultrasonicWaitingForEcho = false;
+    if (duration < kUltrasonicTimeoutUs) {
+      const float distanceCm = duration * 0.01715f;
+      if (distanceCm >= 2.0f && distanceCm <= 400.0f && g_ultrasonicOutputPort != nullptr) {
+        g_ultrasonicOutputPort->print("DIST,");
+        g_ultrasonicOutputPort->println(distanceCm, 1);
+      }
     }
+  } else if (nowUs - g_ultrasonicTriggerUs >= kUltrasonicTimeoutUs) {
+    g_ultrasonicWaitingForEcho = false;
   }
 }
 
@@ -365,35 +387,35 @@ void handleWatchdog() {
       g_calibrationMode = false;
       stopMotion();
       resetWatchdog();
-      Serial.println("CAL_TIMEOUT");
+      g_activeControlPort->println("CAL_TIMEOUT");
     }
     return;
   }
   if (millis() - g_lastCommandMs > kWatchdogTimeoutMs) {
     stopMotion();
-    Serial.println("WATCHDOG");
+    g_activeControlPort->println("WATCHDOG");
     g_lastCommandMs = millis();
   }
 }
 
-void printCalibrationTable() {
-  Serial.println("CAL_TABLE motor,minDuty,gain");
+void printCalibrationTable(Stream& reply) {
+  reply.println("CAL_TABLE motor,minDuty,gain");
   for (uint8_t i = 0; i < 4; ++i) {
-    Serial.print("CAL_TABLE ");
-    Serial.print(i);
-    Serial.print(',');
-    Serial.print(kMotorMinDuty[i]);
-    Serial.print(',');
-    Serial.println(kMotorGain[i], 3);
+    reply.print("CAL_TABLE ");
+    reply.print(i);
+    reply.print(',');
+    reply.print(kMotorMinDuty[i]);
+    reply.print(',');
+    reply.println(kMotorGain[i], 3);
   }
 }
 
-bool handleCalibrationCommand(const String& command) {
+bool handleCalibrationCommand(const String& command, Stream& reply) {
   // CAL            -> mostra a tabela atual
   // CAL,ON | OFF   -> entra/sai do modo (suspende o watchdog)
   // CAL,<m>,<duty> -> aciona um motor com duty cru, de -255 a 255
   if (command == "CAL") {
-    printCalibrationTable();
+    printCalibrationTable(reply);
     return true;
   }
 
@@ -401,7 +423,7 @@ bool handleCalibrationCommand(const String& command) {
     g_calibrationMode = true;
     g_calibrationStartedMs = millis();
     stopMotion();
-    Serial.println("CAL_ON");
+    reply.println("CAL_ON");
     return true;
   }
 
@@ -409,7 +431,7 @@ bool handleCalibrationCommand(const String& command) {
     g_calibrationMode = false;
     stopMotion();
     resetWatchdog();
-    Serial.println("CAL_OFF");
+    reply.println("CAL_OFF");
     return true;
   }
 
@@ -424,14 +446,14 @@ bool handleCalibrationCommand(const String& command) {
   }
 
   if (!g_calibrationMode) {
-    Serial.println("CAL_OFF");  // acionar motor sem entrar no modo seria surpresa
+    reply.println("CAL_OFF");  // acionar motor sem entrar no modo seria surpresa
     return true;
   }
 
   const int motorIndex = command.substring(firstComma + 1, secondComma).toInt();
   const int duty = command.substring(secondComma + 1).toInt();
   if (motorIndex < 0 || motorIndex > 3) {
-    Serial.println("ERROR");
+    reply.println("ERROR");
     return true;
   }
 
@@ -439,14 +461,15 @@ bool handleCalibrationCommand(const String& command) {
   stopAllMotors();
   g_calibrationStartedMs = millis();  // cada comando renova o teto de tempo
   setMotorRawDuty(static_cast<uint8_t>(motorIndex), duty);
-  Serial.print("CAL_RUN ");
-  Serial.print(motorIndex);
-  Serial.print(',');
-  Serial.println(duty);
+  reply.print("CAL_RUN ");
+  reply.print(motorIndex);
+  reply.print(',');
+  reply.println(duty);
   return true;
 }
 
-void handleCommand(const String& rawCommand) {
+void handleCommand(const String& rawCommand, Stream& reply) {
+  g_activeControlPort = &reply;
   String command = rawCommand;
   command.trim();
   command.toUpperCase();
@@ -455,25 +478,25 @@ void handleCommand(const String& rawCommand) {
     g_safetyStopActive = true;
     g_calibrationMode = false;
     stopMotion();
-    Serial.println("EMERGENCY_LOCKED");
+    reply.println("EMERGENCY_LOCKED");
     return;
   }
 
   if (command == "EMERGENCY RELEASE" || command == "EMERGENCY_RELEASE") {
     g_safetyStopActive = false;
     stopMotion();
-    Serial.println("EMERGENCY_RELEASED");
+    reply.println("EMERGENCY_RELEASED");
     return;
   }
 
   if (command == "STOP") {
     stopMotion();
-    Serial.println("OK");
+    reply.println("OK");
     return;
   }
 
   if (command.startsWith("CAL")) {
-    if (handleCalibrationCommand(command)) {
+    if (handleCalibrationCommand(command, reply)) {
       return;
     }
   }
@@ -481,7 +504,7 @@ void handleCommand(const String& rawCommand) {
   if (command.startsWith("MOVE,")) {
     if (g_safetyStopActive) {
       stopMotion();
-      Serial.println("EMERGENCY_LOCKED");
+      reply.println("EMERGENCY_LOCKED");
       return;
     }
     const int firstComma = command.indexOf(',');
@@ -495,7 +518,7 @@ void handleCommand(const String& rawCommand) {
       g_motionCommand.active = true;
       g_calibrationMode = false;
       resetWatchdog();
-      Serial.println("OK");
+      reply.println("OK");
       return;
     }
   }
@@ -503,14 +526,14 @@ void handleCommand(const String& rawCommand) {
   if (command == "GRAB") {
     closeGripper();
     resetWatchdog();
-    Serial.println("BALL_CAPTURED");
+    reply.println("BALL_CAPTURED");
     return;
   }
 
   if (command == "RELEASE") {
     openGripper();
     resetWatchdog();
-    Serial.println("BALL_DROPPED");
+    reply.println("BALL_DROPPED");
     return;
   }
 
@@ -519,20 +542,20 @@ void handleCommand(const String& rawCommand) {
     if (separator > 0) {
       const int angle = command.substring(separator + 1).toInt();
       g_gripperServo.write(constrain(angle, kServoOpenAngle, kServoClosedAngle));
-      Serial.println("OK");
+      reply.println("OK");
       return;
     }
   }
 
   if (command == "PING") {
     resetWatchdog();
-    Serial.println("PONG");
+    reply.println("PONG");
     return;
   }
 
   if (command == "HEARTBEAT") {
     resetWatchdog();
-    Serial.println("OK");
+    reply.println("OK");
     return;
   }
 
@@ -547,41 +570,66 @@ void handleCommand(const String& rawCommand) {
         if (state == "ON") {
           g_ultrasonicEnabled = true;
           g_lastUltrasonicMeasureMs = millis();
-          Serial.println("OK");
+          g_ultrasonicOutputPort = &reply;
+          reply.println("OK");
           return;
         }
         if (state == "OFF") {
           g_ultrasonicEnabled = false;
-          Serial.println("OK");
+          g_ultrasonicWaitingForEcho = false;
+          g_ultrasonicOutputPort = nullptr;
+          reply.println("OK");
           return;
         }
       }
     }
   }
 
-  Serial.println("ERROR");
+  reply.println("ERROR");
+}
+
+void processSerialPort(Stream& port, char* line, size_t& length) {
+  while (port.available() > 0) {
+    const char value = static_cast<char>(port.read());
+    if (value == '\r') {
+      continue;
+    }
+    if (value == '\n') {
+      line[length] = '\0';
+      if (length > 0) {
+        handleCommand(String(line), port);
+      }
+      length = 0;
+      continue;
+    }
+    if (length + 1 >= kSerialLineCapacity) {
+      length = 0;
+      port.println("ERROR");
+      continue;
+    }
+    line[length++] = value;
+  }
 }
 
 void setup() {
   Serial.begin(kSerialBaudrate);
+  Serial1.begin(kSerialBaudrate);
   initMotors();
   initGripper();
   initUltrasonic();
   stopMotion();
   Serial.println("READY");
+  Serial1.println("READY");
 }
 
 void loop() {
-  if (Serial.available()) {
-    const String command = Serial.readStringUntil('\n');
-    handleCommand(command);
-  }
-
+  processSerialPort(Serial, g_usbLine, g_usbLineLength);
+  processSerialPort(Serial1, g_uartLine, g_uartLineLength);
   handleWatchdog();
   handleUltrasonic();
 
   if (g_calibrationMode) {
-    delay(10);
+    delayMicroseconds(50);
     return;  // a calibracao mantem o duty cru que foi pedido
   }
 
@@ -591,5 +639,5 @@ void loop() {
     stopAllMotors();
   }
 
-  delay(10);
+  delayMicroseconds(50);
 }

@@ -26,9 +26,12 @@ diferente de zero mova a roda. Isso desloca a origem e quebra a
 proporcionalidade que a mistura omni assume: o robô passa a girar diferente do
 que foi pedido, e o erro cresce justamente nas curvas.
 
-Quem trata a zona morta é o `fit_to_motor_deadband` no Raspberry
-(`raspberry/motion.py`), reduzindo o avanço até a curva pedida caber na faixa
-útil dos motores. O firmware só precisa ser honesto sobre onde essa faixa começa.
+Quem trata a zona morta é a projeção em `fit_to_motor_deadband` no Raspberry
+(`raspberry/motion.py`). Ela compara o vetor de movimento solicitado com os
+comandos de roda após truncamento, ganho e corte mínimo e escolhe o movimento
+executável mais próximo sem aumentar qualquer componente. Dependendo do vetor,
+uma componente pode ser reduzida ou o comando pode resultar em parada; não há
+conversão implícita de curva em pivô.
 
 ## Antes de tudo: descobrir qual motor é qual roda
 
@@ -104,32 +107,30 @@ confirmar que o que está gravado é o que você mediu.
 
 ## Passo 4: avisar o Raspberry
 
-`MOTOR_DEADBAND_PWM` em `raspberry/config.py` precisa ser o mínimo do **pior**
-motor, expresso na escala de comando:
+`MOTOR_MIN_PWM` e `MOTOR_PWM_GAINS` em `raspberry/config.py` devem espelhar as
+quatro entradas gravadas no firmware PCB:
 
 ```
-MOTOR_DEADBAND_PWM = max(kMotorMinDuty[i] / kMotorGain[i])
+MOTOR_MIN_PWM = tuple(kMotorMinDuty)
+MOTOR_PWM_GAINS = tuple(kMotorGain)
 ```
 
-Esse número define quando o robô troca avanço por pivô nas curvas fechadas. Se
-ficar menor que o valor atual (110), o robô ganha autoridade de curva sem
-precisar pivotar — é o principal ganho prático da calibração.
+Esses valores calibram a simulação dos PWMs no Raspberry; eles não medem
+velocidade física e precisam ser atualizados junto com o firmware. O mapeamento
+não decide sozinho que uma curva deve virar pivô.
 
 ## Verificação
 
 1. **Reta:** `MOVE,180,0,0` por 2 metros. O desvio lateral deve ficar abaixo de
    10 cm. Se puxar para um lado, os ganhos ainda não estão nivelados.
 2. **Pivô:** `MOVE,0,0,150`. O robô deve girar no lugar, sem transladar.
-3. **Curva fechada:** `MOVE,110,0,125`. Deve virar visivelmente mais fechado que
-   `MOVE,110,0,60`. Se os dois parecerem iguais, a zona morta ainda está
-   engolindo o diferencial.
+3. **Curvas:** compare `MOVE,150,0,50` e `MOVE,110,0,80` com os quatro PWM
+   reportados/calculados. Um componente inviável pode ser reduzido; confirme no
+   chassi a direção e a trajetória antes de aumentar limites.
 
 ## Ultrassônico
 
-O PWM por software mantém uma interrupção a 31,25 kHz, e `pulseIn` conta ciclos
-com as interrupções ligadas. A distância medida sai cerca de 8% maior do que a
-real enquanto os motores estão sob controle do soft PWM.
-
-Aponte o sensor para uma parede a 100 cm medidos com trena e compare com o
-`DIST` reportado. Ajuste o fator `0.01715` em `handleUltrasonic` pela razão entre
-o valor real e o lido.
+O firmware consulta o pino ECHO sem bloquear o loop de controle. Para validar a
+temporização, compare a cadência de aplicação do PWM e a distância `DIST` com
+eco válido e sem eco, com os motores parados e acionados. A precisão da medida
+continua dependendo de aferição física.

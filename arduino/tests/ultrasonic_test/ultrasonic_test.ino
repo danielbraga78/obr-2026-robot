@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-// true = PCB (HARDWARE.md); false = montagem normal.
+// true = PCB (docs/hardware/HARDWARE.md); false = montagem normal.
 constexpr bool kUsePcbWiring = true;
 
 // Montagem normal: TRIG A2, ECHO A3.

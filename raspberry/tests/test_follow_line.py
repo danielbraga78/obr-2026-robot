@@ -2,7 +2,7 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from raspberry.config import BASE_SPEED, LINE_LOST_GRACE_CYCLES, MAX_STEER, MIN_SPEED, RobotContext
 from raspberry.motion import _wheel_speeds, normalize_motor_command

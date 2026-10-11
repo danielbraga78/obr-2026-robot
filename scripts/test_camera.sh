@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-source .venv/bin/activate
+cd "$ROOT_DIR"
+source "$ROOT_DIR/.venv/bin/activate"
 
 echo "Testando câmera..."
 python - <<'PY'

@@ -23,7 +23,7 @@ uma das secoes abaixo e use o firmware correspondente; nao misture os mapas.
 - Montagem normal: `arduino/firmware/robot_mega/robot_mega.ino`
 - Montagem com PCB: `arduino/firmware/robot_mega_pcb/robot_mega_pcb.ino`
 
-O sketch em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino) usa os seguintes pinos para o robô:
+O sketch em [robot_mega.ino](../../arduino/firmware/robot_mega/robot_mega.ino) usa os seguintes pinos para o robô:
 
 - Motor 4: enable em D2, IN1 em D22, IN2 em D23
 - Motor 2: enable em D3, IN1 em D25, IN2 em D24
@@ -1025,7 +1025,7 @@ sequenceDiagram
 
 ### Teste de Integração
 
-- [ ] Executar aplicação de teste: `python3 -m pytest tests/`
+- [ ] Executar aplicação de teste: `python3 -m pytest raspberry/tests/`
 - [ ] Verificar leitura de câmera em tempo real
 - [ ] Verificar envio de comandos ao Arduino
 - [ ] Verificar movimento dos motores

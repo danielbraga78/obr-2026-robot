@@ -6,28 +6,31 @@ import unittest
 from pathlib import Path
 from typing import Optional
 
-# Allow tests to run even when OpenCV is not installed.
-_cv2_module = types.ModuleType("cv2")
-_cv2_module.FONT_HERSHEY_SIMPLEX = 0
-_cv2_module.COLOR_BGR2HSV = 0
-_cv2_module.COLOR_GRAY2BGR = 0
-_cv2_module.COLOR_BGRA2BGR = 0
-_cv2_module.WINDOW_NORMAL = 0
-_cv2_module.utils = types.SimpleNamespace(
-    logging=types.SimpleNamespace(setLogLevel=lambda *args, **kwargs: None, LOG_LEVEL_ERROR=0)
-)
-_cv2_module.namedWindow = lambda *args, **kwargs: None
-_cv2_module.resizeWindow = lambda *args, **kwargs: None
-_cv2_module.imshow = lambda *args, **kwargs: None
-_cv2_module.waitKey = lambda *args, **kwargs: -1
-_cv2_module.destroyWindow = lambda *args, **kwargs: None
-_cv2_module.cvtColor = lambda frame, code: frame
-_cv2_module.resize = lambda frame, size, interpolation=None: frame
-_cv2_module.line = lambda *args, **kwargs: None
-_cv2_module.circle = lambda *args, **kwargs: None
-_cv2_module.putText = lambda *args, **kwargs: None
-_cv2_module.rectangle = lambda *args, **kwargs: None
-_cv2_module.addWeighted = lambda *args, **kwargs: args[0]
+try:
+    import cv2 as _cv2_module
+except ImportError:
+    # Allow tests to run even when OpenCV is not installed.
+    _cv2_module = types.ModuleType("cv2")
+    _cv2_module.FONT_HERSHEY_SIMPLEX = 0
+    _cv2_module.COLOR_BGR2HSV = 0
+    _cv2_module.COLOR_GRAY2BGR = 0
+    _cv2_module.COLOR_BGRA2BGR = 0
+    _cv2_module.WINDOW_NORMAL = 0
+    _cv2_module.utils = types.SimpleNamespace(
+        logging=types.SimpleNamespace(setLogLevel=lambda *args, **kwargs: None, LOG_LEVEL_ERROR=0)
+    )
+    _cv2_module.namedWindow = lambda *args, **kwargs: None
+    _cv2_module.resizeWindow = lambda *args, **kwargs: None
+    _cv2_module.imshow = lambda *args, **kwargs: None
+    _cv2_module.waitKey = lambda *args, **kwargs: -1
+    _cv2_module.destroyWindow = lambda *args, **kwargs: None
+    _cv2_module.cvtColor = lambda frame, code: frame
+    _cv2_module.resize = lambda frame, size, interpolation=None: frame
+    _cv2_module.line = lambda *args, **kwargs: None
+    _cv2_module.circle = lambda *args, **kwargs: None
+    _cv2_module.putText = lambda *args, **kwargs: None
+    _cv2_module.rectangle = lambda *args, **kwargs: None
+    _cv2_module.addWeighted = lambda *args, **kwargs: args[0]
 
 try:
     import numpy as np
@@ -43,7 +46,7 @@ except ImportError:
 sys.modules.setdefault("cv2", _cv2_module)
 sys.modules.setdefault("numpy", np)
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from raspberry.config import RobotContext
 from raspberry.main import RobotApp, build_vision_detectors
@@ -108,6 +111,9 @@ class DummyPreview:
     def render(self, *args, **kwargs):
         pass
 
+    def is_enabled(self):
+        return False
+
     def close(self):
         pass
 
@@ -161,12 +167,14 @@ def make_robot_app(time_fn: Optional[callable] = None) -> RobotApp:
     app.last_frame = None
     app.last_frame_at = None
     app._last_vision_result_at = None
+    app._last_vision_capture_at = None
     app._last_command_sent_at = None
     app._now = time_fn
     app._frame_lock = threading.Lock()
     app._last_telemetry_log = 0.0
     app._vision_fps = 0.0
     app._last_capture_at = None
+    app._last_heartbeat_call = 0.0
     app.preview = DummyPreview()
     app.loop_controller = ExecutionLoopController(target_hz=20.0, now_fn=time_fn)
     return app
@@ -196,6 +204,7 @@ class MainLoopFallbackTests(unittest.TestCase):
         frame = object()
         rendered_frames = []
         self.app.last_frame = frame
+        self.app.preview.is_enabled = lambda: True
         self.app.preview.render = lambda current_frame, *args: (
             rendered_frames.append(current_frame), self.app._stop_event.set()
         )
@@ -233,7 +242,53 @@ class MainLoopFallbackTests(unittest.TestCase):
         self.assertEqual(self.app.serial.commands[-1], "STOP")
         self.assertEqual(self.app.machine.current_state, "SEARCH_LINE")
 
-    def test_recovery_after_vision_returns_to_motion(self):
+    def test_latest_capture_timestamp_wins_and_out_of_order_results_are_rejected(self):
+        self.app.machine.current_state = "FOLLOW_LINE"
+        older = VisionResult(
+            detections={"line": LineDetection(error=80, frame_width=320, confidence=1.0)},
+            captured_at=0.05,
+        )
+        newer = VisionResult(
+            detections={"line": LineDetection(error=20, frame_width=320, confidence=1.0)},
+            captured_at=0.10,
+        )
+        self.app.result_queue.put(older)
+        self.app.result_queue.put(newer)
+        self.time.advance(0.10)
+
+        self.app._process_cycle()
+
+        self.assertEqual(self.app._last_vision_capture_at, 0.10)
+        self.assertEqual(self.app.context.line_observation_at, 0.10)
+        self.assertEqual(self.app.context.line_observation_sequence, 1)
+
+        self.app.result_queue.put(VisionResult(detections={"line": older.detections["line"]}, captured_at=0.08))
+        self.time.advance(0.01)
+        self.app._process_cycle()
+
+        self.assertEqual(self.app._last_vision_capture_at, 0.10)
+        self.assertEqual(self.app.context.line_observation_sequence, 1)
+
+    def test_old_last_frame_is_never_reprocessed_after_observation_expires(self):
+        class DetectorThatMustNotRun:
+            def detect(self, frame):
+                raise AssertionError("FollowLineState must not reprocess last_frame")
+
+        self.app.machine.current_state = "FOLLOW_LINE"
+        self.app.detectors["line"] = DetectorThatMustNotRun()
+        self.app.last_frame = object()
+        line = LineDetection(center_x=160.0, error=0.0, confidence=1.0, frame_width=320)
+        self.app.result_queue.put(VisionResult(detections={"line": line}, captured_at=0.0))
+        self.app._process_cycle()
+        self.assertTrue(self.app.serial.commands[-1].startswith("MOVE,"))
+
+        self.time.advance(0.251)
+        self.app._process_cycle()
+
+        self.assertEqual(self.app.serial.commands[-1], "STOP")
+        self.assertEqual(self.app.machine.current_state, "SEARCH_LINE")
+
+    def test_recovery_after_vision_requires_three_new_observations(self):
         self.app.machine.current_state = "FOLLOW_LINE"
         self.app.context.current_state = "FOLLOW_LINE"
         line = LineDetection(center_x=160.0, error=0.0, confidence=1.0, frame_width=320)
@@ -249,8 +304,24 @@ class MainLoopFallbackTests(unittest.TestCase):
         self.app.result_queue.put(VisionResult(detections={"line": line}, captured_at=self.time.now()))
         self.app._process_cycle()
 
-        self.assertTrue(self.app.serial.commands[-1].startswith("MOVE,"))
+        self.assertEqual(self.app.serial.commands[-1], "STOP")
+        self.assertEqual(self.app.machine.current_state, "SEARCH_LINE")
+
+        for _ in range(2):
+            self.time.advance(0.01)
+            self.app.result_queue.put(
+                VisionResult(detections={"line": line}, captured_at=self.time.now())
+            )
+            self.app._process_cycle()
+
+        self.assertEqual(self.app.serial.commands[-1], "STOP")
         self.assertEqual(self.app.machine.current_state, "FOLLOW_LINE")
+        self.time.advance(0.01)
+        self.app.result_queue.put(
+            VisionResult(detections={"line": line}, captured_at=self.time.now())
+        )
+        self.app._process_cycle()
+        self.assertTrue(self.app.serial.commands[-1].startswith("MOVE,"))
 
     def test_expired_last_command_falls_back_to_stop(self):
         self.app.context.last_command = "MOVE,10,0,1"

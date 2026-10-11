@@ -61,6 +61,17 @@ bool g_safetyStopActive = false;
 bool g_ultrasonicEnabled = false;
 unsigned long g_lastUltrasonicMeasureMs = 0;
 constexpr unsigned long kUltrasonicMeasureIntervalMs = 100;  // 10 Hz
+constexpr size_t kSerialLineCapacity = 96;
+char g_usbLine[kSerialLineCapacity];
+char g_uartLine[kSerialLineCapacity];
+size_t g_usbLineLength = 0;
+size_t g_uartLineLength = 0;
+Stream* g_activeControlPort = &Serial;
+Stream* g_ultrasonicOutputPort = nullptr;
+bool g_ultrasonicWaitingForEcho = false;
+bool g_ultrasonicEchoStarted = false;
+unsigned long g_ultrasonicTriggerUs = 0;
+unsigned long g_ultrasonicEchoRiseUs = 0;
 
 Servo g_gripperServo;
 HBridge g_bridgeA = {
@@ -208,17 +219,15 @@ void initUltrasonic() {
   digitalWrite(kUltrasonicTrigPin, LOW);
 }
 
-unsigned long measureUltrasonic() {
-  // Dispara o sensor
+void startUltrasonicMeasurement() {
   digitalWrite(kUltrasonicTrigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(kUltrasonicTrigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(kUltrasonicTrigPin, LOW);
-  
-  // Aguarda o echo
-  unsigned long duration = pulseIn(kUltrasonicEchoPin, HIGH, kUltrasonicTimeoutUs);
-  return duration;
+  g_ultrasonicTriggerUs = micros();
+  g_ultrasonicWaitingForEcho = true;
+  g_ultrasonicEchoStarted = false;
 }
 
 void handleUltrasonic() {
@@ -226,38 +235,45 @@ void handleUltrasonic() {
     return;
   }
   
-  unsigned long now = millis();
-  if (now - g_lastUltrasonicMeasureMs < kUltrasonicMeasureIntervalMs) {
+  if (!g_ultrasonicWaitingForEcho) {
+    const unsigned long now = millis();
+    if (now - g_lastUltrasonicMeasureMs >= kUltrasonicMeasureIntervalMs) {
+      g_lastUltrasonicMeasureMs = now;
+      startUltrasonicMeasurement();
+    }
     return;
   }
-  
-  g_lastUltrasonicMeasureMs = now;
-  
-  unsigned long duration = measureUltrasonic();
-  
-  // Converter para centímetros: distância = (duração em microssegundos * velocidade do som) / 2
-  // Velocidade do som: ~343 m/s = 0.0343 cm/us
-  // Fórmula: cm = (duration * 0.0343) / 2 = duration * 0.01715
-  if (duration > 0 && duration < kUltrasonicTimeoutUs) {
-    float distanceCm = duration * 0.01715f;
-    
-    // Validar range razoável (2cm a 400cm)
-    if (distanceCm >= 2.0f && distanceCm <= 400.0f) {
-      Serial.print("DIST,");
-      Serial.println(distanceCm, 1);
+
+  const unsigned long nowUs = micros();
+  const bool echoHigh = digitalRead(kUltrasonicEchoPin) == HIGH;
+  if (!g_ultrasonicEchoStarted && echoHigh) {
+    g_ultrasonicEchoStarted = true;
+    g_ultrasonicEchoRiseUs = nowUs;
+  } else if (g_ultrasonicEchoStarted && !echoHigh) {
+    const unsigned long duration = nowUs - g_ultrasonicEchoRiseUs;
+    g_ultrasonicWaitingForEcho = false;
+    if (duration < kUltrasonicTimeoutUs) {
+      const float distanceCm = duration * 0.01715f;
+      if (distanceCm >= 2.0f && distanceCm <= 400.0f && g_ultrasonicOutputPort != nullptr) {
+        g_ultrasonicOutputPort->print("DIST,");
+        g_ultrasonicOutputPort->println(distanceCm, 1);
+      }
     }
+  } else if (nowUs - g_ultrasonicTriggerUs >= kUltrasonicTimeoutUs) {
+    g_ultrasonicWaitingForEcho = false;
   }
 }
 
 void handleWatchdog() {
   if (millis() - g_lastCommandMs > kWatchdogTimeoutMs) {
     stopMotion();
-    Serial.println("WATCHDOG");
+    g_activeControlPort->println("WATCHDOG");
     g_lastCommandMs = millis();
   }
 }
 
-void handleCommand(const String& rawCommand) {
+void handleCommand(const String& rawCommand, Stream& reply) {
+  g_activeControlPort = &reply;
   String command = rawCommand;
   command.trim();
   command.toUpperCase();
@@ -265,27 +281,27 @@ void handleCommand(const String& rawCommand) {
   if (command == "EMERGENCY STOP" || command == "EMERGENCY_STOP") {
     g_safetyStopActive = true;
     stopMotion();
-    Serial.println("EMERGENCY_LOCKED");
+    reply.println("EMERGENCY_LOCKED");
     return;
   }
 
   if (command == "EMERGENCY RELEASE" || command == "EMERGENCY_RELEASE") {
     g_safetyStopActive = false;
     stopMotion();
-    Serial.println("EMERGENCY_RELEASED");
+    reply.println("EMERGENCY_RELEASED");
     return;
   }
 
   if (command == "STOP") {
     stopMotion();
-    Serial.println("OK");
+    reply.println("OK");
     return;
   }
 
   if (command.startsWith("MOVE,")) {
     if (g_safetyStopActive) {
       stopMotion();
-      Serial.println("EMERGENCY_LOCKED");
+      reply.println("EMERGENCY_LOCKED");
       return;
     }
     const int firstComma = command.indexOf(',');
@@ -302,7 +318,7 @@ void handleCommand(const String& rawCommand) {
       g_motionCommand.wz = wzToken.toFloat();
       g_motionCommand.active = true;
       resetWatchdog();
-      Serial.println("OK");
+      reply.println("OK");
       return;
     }
   }
@@ -310,14 +326,14 @@ void handleCommand(const String& rawCommand) {
   if (command == "GRAB") {
     closeGripper();
     resetWatchdog();
-    Serial.println("BALL_CAPTURED");
+    reply.println("BALL_CAPTURED");
     return;
   }
 
   if (command == "RELEASE") {
     openGripper();
     resetWatchdog();
-    Serial.println("BALL_DROPPED");
+    reply.println("BALL_DROPPED");
     return;
   }
 
@@ -327,20 +343,20 @@ void handleCommand(const String& rawCommand) {
       const String angleToken = command.substring(separator + 1);
       const int angle = angleToken.toInt();
       g_gripperServo.write(constrain(angle, kServoOpenAngle, kServoClosedAngle));
-      Serial.println("OK");
+      reply.println("OK");
       return;
     }
   }
 
   if (command == "PING") {
     resetWatchdog();
-    Serial.println("PONG");
+    reply.println("PONG");
     return;
   }
 
   if (command == "HEARTBEAT") {
     resetWatchdog();
-    Serial.println("OK");
+    reply.println("OK");
     return;
   }
 
@@ -358,35 +374,60 @@ void handleCommand(const String& rawCommand) {
         if (state == "ON") {
           g_ultrasonicEnabled = true;
           g_lastUltrasonicMeasureMs = millis();
-          Serial.println("OK");
+          g_ultrasonicOutputPort = &reply;
+          reply.println("OK");
           return;
         } else if (state == "OFF") {
           g_ultrasonicEnabled = false;
-          Serial.println("OK");
+          g_ultrasonicWaitingForEcho = false;
+          g_ultrasonicOutputPort = nullptr;
+          reply.println("OK");
           return;
         }
       }
     }
   }
 
-  Serial.println("ERROR");
+  reply.println("ERROR");
+}
+
+void processSerialPort(Stream& port, char* line, size_t& length) {
+  while (port.available() > 0) {
+    const char value = static_cast<char>(port.read());
+    if (value == '\r') {
+      continue;
+    }
+    if (value == '\n') {
+      line[length] = '\0';
+      if (length > 0) {
+        handleCommand(String(line), port);
+      }
+      length = 0;
+      continue;
+    }
+    if (length + 1 >= kSerialLineCapacity) {
+      length = 0;
+      port.println("ERROR");
+      continue;
+    }
+    line[length++] = value;
+  }
 }
 
 void setup() {
   Serial.begin(kSerialBaudrate);
+  Serial1.begin(kSerialBaudrate);
   initMotors();
   initGripper();
   initUltrasonic();
   stopMotion();
   Serial.println("READY");
+  Serial1.println("READY");
 }
 
 void loop() {
-  if (Serial.available()) {
-    String command = Serial.readStringUntil('\n');
-    handleCommand(command);
-  }
-
+  processSerialPort(Serial, g_usbLine, g_usbLineLength);
+  processSerialPort(Serial1, g_uartLine, g_uartLineLength);
   handleWatchdog();
   handleUltrasonic();
 
@@ -396,5 +437,5 @@ void loop() {
     stopAllMotors();
   }
 
-  delay(10);
+  delayMicroseconds(50);
 }

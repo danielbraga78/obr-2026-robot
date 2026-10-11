@@ -7,7 +7,7 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from raspberry.config import LINE_LOST_GRACE_CYCLES, RobotContext
 from raspberry.state_machine import RobotStateMachine
@@ -53,11 +53,16 @@ class Robot:
         self.context = RobotContext()
         self.commands = []
         self.executed_states = []
+        self.now = 0.0
 
     def tick(self, line=None, ball=None):
+        self.now += 0.05
+        self.context.control_time = self.now
         detections = {}
         if line is not None:
             detections["line"] = line
+            self.context.line_observation_sequence += 1
+            self.context.line_observation_at = self.now
         if ball is not None:
             detections["ball"] = ball
         self.context.last_detections = detections

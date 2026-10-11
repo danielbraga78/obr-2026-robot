@@ -54,7 +54,12 @@ class SerialTransport:
         if not command:
             return
         normalized = command.strip().upper()
-        if normalized.startswith("MOVE,") or normalized == "STOP":
+        if normalized == "STOP" or normalized in {"EMERGENCY STOP", "EMERGENCY_STOP"}:
+            # STOP deve ser o próximo comando enviado, mesmo com heartbeat ou
+            # movimentos aguardando. Um write já iniciado não é preemptível.
+            with self._command_queue.mutex:
+                self._command_queue.queue.clear()
+        elif normalized.startswith("MOVE,"):
             # O controle produz um MOVE a cada ciclo. Com uma reconexão ou uma
             # escrita lenta, executar todos os comandos acumulados transforma
             # uma leitura atual em uma sequência de correções antigas. STOP

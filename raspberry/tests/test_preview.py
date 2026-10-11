@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from raspberry.config import RobotContext
 from raspberry.preview import PreviewWindow

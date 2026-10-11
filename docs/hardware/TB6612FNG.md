@@ -374,7 +374,7 @@ void setMotorSpeed(uint8_t pwmPin, uint8_t speed) {
 
 ## 8. Integração com o projeto
 
-O firmware do projeto em [arduino/robot.ino](arduino/robot.ino) deve usar o TB6612FNG como camada de atuação de baixo nível.
+O firmware legado do projeto em [arduino/robot/robot.ino](../../arduino/robot/robot.ino) usa o TB6612FNG como camada de atuação de baixo nível.
 
 ### Funções esperadas no firmware
 

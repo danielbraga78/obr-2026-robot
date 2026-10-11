@@ -1,12 +1,12 @@
 import unittest
 from pathlib import Path
 
-from competition.behavior_manager import BehaviorManager
-from competition.config import load_config
-from competition.navigation.navigator import Navigator
-from competition.world_model import WorldModel
+from raspberry.competition.behavior_manager import BehaviorManager
+from raspberry.competition.config import load_config
+from raspberry.competition.navigation.navigator import Navigator
+from raspberry.competition.world_model import WorldModel
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class CompetitionArchitectureTests(unittest.TestCase):
@@ -27,7 +27,7 @@ class CompetitionArchitectureTests(unittest.TestCase):
         self.assertEqual(cmd, "MOVE,20,0,0")
 
     def test_config_loader_reads_yaml(self) -> None:
-        config = load_config(str(REPO_ROOT / "competition" / "config" / "default.yaml"))
+        config = load_config(str(REPO_ROOT / "raspberry" / "competition" / "config" / "default.yaml"))
         self.assertIn("competition", config)
         self.assertEqual(config["competition"]["mission"], "rescue")
 

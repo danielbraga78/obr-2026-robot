@@ -2,7 +2,7 @@
 
 Este documento descreve um mapeamento sugerido de pinos e instruções para usar
 o firmware do robô com uma placa **Arduino Mega 2560**. Ele complementa o
-`HARDWARE.md` com detalhes específicos do Mega e instruções rápidas para
+[`HARDWARE.md`](HARDWARE.md) com detalhes específicos do Mega e instruções rápidas para
 compilar e fazer upload.
 
 ## Por que usar o Mega?
@@ -14,7 +14,7 @@ compilar e fazer upload.
 
 ## Mapeamento de pinos atual
 
-Este é o mapeamento usado no firmware normal em [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino). As conexoes das montagens normal e PCB estao centralizadas em [HARDWARE.md](../HARDWARE.md); use o firmware correspondente a montagem escolhida.
+Este é o mapeamento usado no firmware normal em [robot_mega.ino](../../arduino/firmware/robot_mega/robot_mega.ino). As conexões das montagens normal e PCB estão centralizadas em [HARDWARE.md](HARDWARE.md); use o firmware correspondente à montagem escolhida.
 Mantenha o GND comum entre todos os dispositivos e siga este layout para evitar divergências.
 
 | Constante no sketch | Função | Pino Mega |
@@ -48,6 +48,9 @@ Notas:
   - Arduino responde a `HEARTBEAT` sem mover o robô e reseta o watchdog local.
   - Se não houver tráfego válido por mais de 1 segundo, o Arduino para os motores e envia `WATCHDOG`.
   - O Raspberry interpreta `WATCHDOG` como falha explícita e entra em estado seguro com `STOP`.
+- O firmware inicializa `Serial` (USB) e `Serial1` (UART TTL) a 115200 baud.
+  Cada interface mantém seu próprio buffer de linha; a resposta a um comando
+  retorna pela mesma interface que o recebeu. `READY` é anunciado nas duas.
 - Para comunicação TTL dedicada (sem USB), use `Serial1` do Mega:
   - TX1 = pino `18` (Mega) — conecta ao RX do Raspberry (GPIO 15) via conversor
     de nível (ou divisor de tensão)
@@ -73,9 +76,14 @@ arduino-cli upload -p /dev/ttyACM0 --fqbn arduino:avr:mega:cpu=atmega2560 arduin
 
 ## Testes pós-upload (recomendado)
 
-1. Verifique se `READY` aparece na serial ao inicializar.
+1. Verifique se `READY` aparece na interface que será usada (USB ou UART).
 2. Teste individualmente cada motor com os comandos de teste (ex.: `MOVE,110,0,0`).
 3. Confirme que `STBY` está HIGH para habilitar os drivers.
+
+O suporte de software a USB e UART não confirma a montagem física. Antes de
+energizar, confira a pinagem, o terra comum e a conversão de nível de 5 V TX do
+Mega para RX de 3,3 V do Raspberry. Na placa customizada, meça VM e VCC na
+netlist e no conector antes de conectar a alimentação.
 
 ## Observações finais
 

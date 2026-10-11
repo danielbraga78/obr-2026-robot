@@ -139,9 +139,9 @@ O Arduino é responsável por executar o controle de baixo nível:
 
 O firmware está concentrado em um único arquivo otimizado:
 
-- [arduino/robot.ino](arduino/robot.ino) (~250 linhas)
+- [arduino/robot/robot.ino](arduino/robot/robot.ino) (firmware legado)
 
-- Firmware Mega: [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino) e guia em [arduino/MEGA.md](arduino/MEGA.md).
+- Firmware Mega: [arduino/firmware/robot_mega/robot_mega.ino](arduino/firmware/robot_mega/robot_mega.ino) e guia em [docs/hardware/MEGA.md](docs/hardware/MEGA.md).
 
 Ele mantém a lógica bem estruturada:
 
@@ -226,7 +226,7 @@ stateDiagram-v2
 
 ### Behavior Manager
 
-O comportamento atual é decidido pela estratégia e pela máquina de estados. O módulo de comportamento do projeto de competição também está presente em [competition](competition).
+O comportamento atual é decidido pela estratégia e pela máquina de estados. O módulo de comportamento do projeto de competição também está presente em [raspberry/competition](raspberry/competition).
 
 ### Mission Manager
 
@@ -255,47 +255,42 @@ Converte a decisão do comportamento em comando de movimento ou ação para o Ar
 ## Estrutura de Pastas
 
 ```text
-2026/novo_projeto/
+obr-2026-robot/
 ├── arduino/
-│   └── robot.ino                # Firmware do Arduino em um único arquivo (~250 linhas)
-├── competition/
-│   ├── behaviors/               # Comportamentos de alto nível
-│   ├── config/                  # Configuração da competição
-│   ├── navigation/              # Navigator e lógica de navegação
-│   ├── vision/                  # Detecção e percepção da competição
-│   ├── behavior_manager.py      # Gerenciador de comportamentos
-│   ├── mission_manager.py       # Gerenciador de fase da missão
-│   ├── sensor_fusion.py         # Fusão de sinais e sensores
-│   ├── state_machine.py         # Máquina de estados da competição
-│   └── world_model.py           # Modelo global de estado
+│   ├── firmware/
+│   │   ├── robot_mega/
+│   │   └── robot_mega_pcb/
+│   ├── robot/                   # Firmware legado
+│   └── tests/                   # Testes específicos do Arduino
+├── docs/
+│   ├── calibration/
+│   ├── diagnostics/
+│   └── hardware/
 ├── raspberry/
-│   ├── camera.py                # Abstração da câmera
-│   ├── communication.py         # Camada abstrata de serial USB/UART
-│   ├── config.py                # Configurações de runtime
+│   ├── competition/             # Código de alto nível da competição
+│   │   ├── behaviors/
+│   │   ├── config/
+│   │   ├── navigation/
+│   │   └── vision/
+│   ├── tests/                   # Testes Python
 │   ├── main.py                  # Ponto de entrada do robô
-│   ├── runtime.py               # Controle de taxa e latência
-│   ├── serial_manager.py        # Adaptador para a camada serial
-│   ├── sensor_interface.py      # Interfaces abstratas para sensores
-│   ├── sensors_future.py        # Placeholders para sensores futuros
-│   ├── state_machine.py         # Máquina de estados do robô
-│   ├── strategy.py              # Estratégia do robô
-│   ├── pid.py                   # Controlador PID simples
-│   ├── states/                  # Estados do robô (11 estados)
-│   └── vision/                  # Detectores e pipeline visual
-│       ├── line_detector.py     # Detecção de linha preta
-│       ├── ball_detector.py     # Detecção de bola
-│       ├── rescue_detector.py   # Detecção de zona de resgate
-│       ├── safe_zone_detector.py# Detecção de zona segura
-│       ├── obstacle_detector.py # Detecção de obstáculos (vision-based)
-│       └── pipeline.py          # Pipeline integrado de visão
-├── tests/
-│   ├── test_camera_manager.py
-│   ├── test_competition_architecture.py
-│   ├── test_state_machine.py
-│   ├── test_vision_pipeline.py
-│   └── test_runtime_controller.py
-├── README.md                    # Este arquivo
-└── HARDWARE.md                  # Documentação completa de montagem física
+│   ├── config.py
+│   ├── camera.py
+│   ├── communication.py
+│   ├── motion.py
+│   ├── pid.py
+│   ├── states/
+│   └── vision/
+├── scripts/
+│   ├── setup_dev_env.sh
+│   └── test_camera.sh
+├── robot-obr.service
+├── run_robot.sh
+├── stop_robot_service.sh
+├── requirements.txt
+├── requirements-dev.txt
+├── .gitignore
+└── README.md
 ```
 
 ## Requisitos
@@ -373,7 +368,7 @@ python3 -m pip install -r requirements-dev.txt
 Para rodar a suíte completa:
 
 ```bash
-python3 -m unittest discover -s tests -q
+python3 -m unittest discover -s raspberry/tests -q
 ```
 
 ### 3. Configurar a câmera
@@ -437,7 +432,7 @@ ls /dev/serial0 /dev/ttyAMA0 /dev/ttyS0 2>/dev/null
 
 ### 6. Gravar o firmware no Arduino
 
-Abra o arquivo [arduino/robot.ino](arduino/robot.ino) no Arduino IDE e faça o upload para o microcontrolador.
+Abra o arquivo legado [arduino/robot/robot.ino](arduino/robot/robot.ino) no Arduino IDE e faça o upload para o microcontrolador.
 
 ### 7. Configurar o Raspberry Pi
 
@@ -490,7 +485,7 @@ python raspberry/main.py
 ```bash
 cd /home/pi/Desktop/novo_projeto
 source .venv/bin/activate
-python -m unittest discover -s tests -p 'test*.py'
+python -m unittest discover -s raspberry/tests -p 'test*.py'
 ```
 
 ### Seleção automática da serial
@@ -576,7 +571,7 @@ Cada estado executa rapidamente e devolve um comando para o Arduino.
 
 ## Behaviors
 
-Os comportamentos são implementados em [competition/behaviors](competition/behaviors) e descrevem a lógica de alto nível da competição.
+Os comportamentos são implementados em [raspberry/competition/behaviors](raspberry/competition/behaviors) e descrevem a lógica de alto nível da competição.
 
 ## Visão Computacional
 
@@ -646,7 +641,7 @@ A arquitetura foi projetada para suportar sensores adicionais sem alterar o cód
 
 3. O resto do sistema funciona automaticamente!
 
-Ver [HARDWARE.md](HARDWARE.md) para pinagem e instruções de montagem de sensores futuros.
+Ver [docs/hardware/HARDWARE.md](docs/hardware/HARDWARE.md) para pinagem e instruções de montagem de sensores futuros.
 
 ### Como adicionar novas câmeras
 
@@ -663,10 +658,10 @@ Ver [HARDWARE.md](HARDWARE.md) para pinagem e instruções de montagem de sensor
 Os testes automatizados podem ser executados com:
 
 ```bash
-cd /home/leosouza/Desktop/trabalho/2026/novo_projeto
-python -m pytest tests/
+cd /path/to/obr-2026-robot
+python -m pytest raspberry/tests/
 # ou
-python -m unittest discover -s tests -p 'test*.py'
+python -m unittest discover -s raspberry/tests -p 'test*.py'
 ```
 
 ## Solução de Problemas
@@ -705,7 +700,7 @@ python -m unittest discover -s tests -p 'test*.py'
 - ✅ Remover dependência de sensores de distância
 - ✅ Implementar detecção de obstáculos por visão
 - ✅ Criar arquitetura extensível para sensores
-- ✅ Documentar montagem física (HARDWARE.md)
+- ✅ Documentar montagem física ([docs/hardware/HARDWARE.md](docs/hardware/HARDWARE.md))
 
 **Médio Prazo:**
 - [ ] Integrar sensor ultrassônico (opcional, para redundância)
@@ -725,8 +720,11 @@ python -m unittest discover -s tests -p 'test*.py'
 ## Documentação
 
 - **README.md**: Este arquivo (visão geral e guia de uso)
-- **HARDWARE.md**: Documentação completa de montagem física, pinagem e compatibilidade
-- **[arduino/robot.ino](arduino/robot.ino)**: Firmware do Arduino bem comentado
+- **[docs/hardware/HARDWARE.md](docs/hardware/HARDWARE.md)**: documentação completa de montagem física, pinagem e compatibilidade
+- **[docs/hardware/TB6612FNG.md](docs/hardware/TB6612FNG.md)**: guia dos drivers de motor
+- **[docs/calibration/CALIBRACAO_MOTORES.md](docs/calibration/CALIBRACAO_MOTORES.md)**: calibração dos motores
+- **[docs/diagnostics/DIAGNOSTICO_CONTROLE_LINHA.md](docs/diagnostics/DIAGNOSTICO_CONTROLE_LINHA.md)**: diagnóstico do controle de linha
+- **[arduino/robot/robot.ino](arduino/robot/robot.ino)**: firmware legado do Arduino
 - **[raspberry/config.py](raspberry/config.py)**: Todas as configurações do sistema
 - **[raspberry/sensor_interface.py](raspberry/sensor_interface.py)**: Interfaces para adicionar sensores
 
