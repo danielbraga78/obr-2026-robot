@@ -69,3 +69,18 @@ Thumbs.db
 # Arduino IDE
 .arduino/
 .planos/
+
+# AI agent configuration and generated graph data
+.github/
+.claude/
+.copilot/
+.agents/
+.cursor/
+.windsurf/
+.aider*
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+skills-lock.json
+/graphify/
+/graphify-out/
