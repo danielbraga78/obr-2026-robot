@@ -119,11 +119,13 @@ Esses valores calibram a simulação dos PWMs no Raspberry; eles não medem
 velocidade física e precisam ser atualizados junto com o firmware. O mapeamento
 não decide sozinho que uma curva deve virar pivô.
 
-## Sketch autônomo de calibração
+## Sketch universal de calibração
 
-Também é possível usar `arduino/tests/motor_calibration_test/` para levantar
-os valores pelo Monitor Serial. Esse sketch é exclusivo da Mega 2560 com a PCB
-e os pinos deste documento; carregá-lo substitui temporariamente o firmware do
+Também é possível usar `arduino/tests/universal_calibration_test/` para levantar
+os valores pelo Monitor Serial. Ele reúne a bancada de motores, a calibração, o
+teste de pontes, o HC-SR04, o servo e a medição do giro de 90°. Foi escrito para
+a Mega 2560 com a PCB e os pinos deste documento (`kUsePcbWiring = false` troca
+para a protoboard); carregá-lo substitui temporariamente o firmware do
 robô. Regrave `arduino/firmware/robot_mega_pcb/robot_mega_pcb.ino` depois da
 calibração.
 
@@ -145,6 +147,33 @@ de contar voltas manualmente:
 4. Envie `SUMMARY` para imprimir `kMotorMinDuty` e `kMotorGain` quando os
    quatro mínimos e os quatro testes de ganho estiverem registrados. Os
    resultados ficam apenas na RAM e são perdidos ao reiniciar.
+
+Outros comandos do mesmo sketch (`HELP` lista todos):
+
+- `SEQ[,<duty>]` roda M1 a M4, frente e ré, 1,5 s cada, para descobrir qual
+  conector J2-J5 é qual roda. `BRIDGE,<A|B>[,<duty>]` testa uma ponte H.
+- `US`, `USWATCH,ON|OFF` e `USSTAT,<n>` leem o HC-SR04 (uma leitura, monitor
+  contínuo e min/média/máx); `ANALOG` lê A6/A7; `SERVO,OPEN|CLOSE|<ângulo>`
+  move a garra.
+
+### Giro de 90°
+
+Com o robô no chão, o sketch gira sobre o próprio eixo com a mesma mistura do
+firmware (`vx = vy = 0`; M1 e M3 recebem `+wz`, M2 e M4 `-wz`). Por padrão ele
+aplica o duty mínimo e o ganho que você registrou (ou o mínimo 110 do firmware);
+`APPLY,OFF` usa duty cru. Confira o sentido físico de `+` com
+`TURN,+,150,500` e ajuste `kPositiveWzIsClockwise` se for o contrário (só muda
+os apelidos `H`/`A`). Há dois jeitos de medir:
+
+1. **Por ângulo:** `TURN,<+|-|H|A>,<duty>,<ms>` gira por tempo fixo; meça o
+   ângulo girado e envie `ANGLE,<graus>`. O sketch calcula graus/s e o tempo
+   para 90° naquele duty.
+2. **Por cronômetro:** `TURNT,<+|-|H|A>,<duty>` gira até você enviar `STOP`
+   quando o robô completar 90°; o tempo decorrido vira o tempo de 90°.
+
+`TURN90,<sentido>` repete o giro medido para validar (e `ANGLE` refina), e
+`TURNS` ou `SUMMARY` mostram a tabela de sentido, duty, tempo e graus/s. Não há
+giroscópio nem encoder nessa rotina: o ângulo é sempre informado por você.
 
 `STOP` interrompe o motor e cancela um teste pendente. `RUN` para sozinho após
 30 segundos; os testes `GAIN` e `MAX` param automaticamente após 10 segundos.

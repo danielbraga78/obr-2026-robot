@@ -572,15 +572,13 @@ essa mesma ordem.
 
 ### Testes Arduino com a PCB
 
-Os testes abaixo possuem a mesma selecao de montagem. Deixe
-`kUsePcbWiring = true` para a PCB; use `false` somente na montagem normal.
+O teste abaixo substitui os antigos sketches separados e tem a mesma selecao de
+montagem. Deixe `kUsePcbWiring = true` para a PCB; use `false` somente na
+montagem normal.
 
 | Teste | Arquivo | Funcao na PCB |
 |---|---|---|
-| Bancada manual | `arduino/tests/motor_bench_test/motor_bench_test.ino` | Seleciona motores J2-J5 e usa PWM por software |
-| Pontes omnidirecionais | `arduino/tests/omni_wheels_test/omni_wheels_test.ino` | Testa Ponte A e Ponte B com D23/D33/D43/D53 |
-| Motores aleatorios | `arduino/tests/omni_wheels_random_individual_test/omni_wheels_random_individual_test.ino` | Testa cada canal PCB individualmente |
-| HC-SR04 | `arduino/tests/ultrasonic_test/ultrasonic_test.ino` | Usa TRIG D44 e ECHO D46 |
+| Calibracao universal | `arduino/tests/universal_calibration_test/universal_calibration_test.ino` | Bancada dos motores J2-J5 (`RUN`, `SEQ`, `BRIDGE`), calibracao (`MIN`, `GAIN`, `MAX`), giro de 90 graus (`TURN`, `TURNT`), HC-SR04 em D44/D46 (`US`, `USWATCH`, `USSTAT`), A6/A7 e servo |
 
 Nos testes de motores da PCB, o PWM por software usa Timer2 porque os enables
 D23, D33, D43 e D53 nao sao pinos PWM de hardware do Mega. O STBY deve estar
