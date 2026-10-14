@@ -64,15 +64,18 @@ ser confirmada com um teste de bancada marcado no chassi.
 Na implementacao corrigida, `motor1..4` seguem:
 
 ```text
-motor1 = vx + vy + wz
-motor2 = vx - vy - wz
-motor3 = vx - vy + wz
-motor4 = vx + vy - wz
+motor1 = vx + vy + wz   (frente esquerda)
+motor2 = vx - vy + wz   (tras esquerda)
+motor3 = vx - vy - wz   (frente direita)
+motor4 = vx + vy - wz   (tras direita)
 ```
 
 Para `vy=0`, `wz=0`, os quatro recebem `vx`. Para um giro positivo, os
-termos de giro aumentam os motores 1 e 3 e reduzem 2 e 4; o sentido fisico
-deve ser validado observando o chassi, pois o codigo nao mede encoders.
+termos de giro aumentam os motores 1 e 2 (lado esquerdo) e reduzem 3 e 4
+(lado direito), girando no sentido horario. Uma versao anterior somava `wz`
+nas dianteiras e subtraia nas traseiras; em rodas Mecanum essa combinacao se
+anula e o robo nao gira. O sentido fisico ainda deve ser validado observando
+o chassi, pois o codigo nao mede encoders.
 
 ## Alteracao realizada
 

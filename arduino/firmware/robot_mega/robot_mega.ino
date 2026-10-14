@@ -157,9 +157,11 @@ void stopAllMotors() {
 }
 
 void applyOmniMotion(float vx, float vy, float wz) {
+  // Mecanum (movimentos-robo-rodas-mecanum.md): vx > 0 avanca, vy > 0 desloca
+  // para a direita e wz > 0 gira no sentido horario (esquerda contra direita).
   const float motor1 = vx + vy + wz;
-  const float motor2 = vx - vy - wz;
-  const float motor3 = vx - vy + wz;
+  const float motor2 = vx - vy + wz;
+  const float motor3 = vx - vy - wz;
   const float motor4 = vx + vy - wz;
 
   const float maxAbs = max(max(abs(motor1), abs(motor2)), max(abs(motor3), abs(motor4)));

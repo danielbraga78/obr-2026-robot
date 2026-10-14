@@ -425,9 +425,9 @@ public:
 
 ---
 
-## 9. Cinemática Omni
+## 9. Cinemática Mecanum
 
-O robô utiliza quatro rodas omnidirecionais, portanto o comando recebido pelo Arduino deve ser convertido em velocidades individuais para cada motor.
+O robô utiliza quatro rodas Mecanum (ver `movimentos-robo-rodas-mecanum.md`), portanto o comando recebido pelo Arduino deve ser convertido em velocidades individuais para cada motor.
 
 ### Exemplo de comando de alto nível
 
@@ -439,20 +439,26 @@ MOVE vx vy omega
 
 Onde:
 
-- `vx`: velocidade longitudinal no eixo X;
-- `vy`: velocidade longitudinal no eixo Y;
-- `omega`: velocidade angular de rotação.
+- `vx`: avanço (positivo para frente);
+- `vy`: deslocamento lateral (positivo para a direita);
+- `omega` (`wz`): rotação (positivo no sentido horário, vista de cima).
 
 ### Convenção de sinais recomendada
 
-A implementação atual do firmware usa a seguinte convenção:
+A implementação atual dos firmwares Mega (`robot_mega` e `robot_mega_pcb`) e
+do Raspberry (`raspberry/motion.py`) usa a seguinte convenção:
 
 ```text
-FL = vx + vy + wz
-FR = -vx + vy + wz
-RL = -vx - vy + wz
-RR = vx - vy + wz
+FL = vx + vy + wz   (motor 0)
+RL = vx - vy + wz   (motor 1)
+FR = vx - vy - wz   (motor 2)
+RR = vx + vy - wz   (motor 3)
 ```
+
+Com isso, `wz` aciona o lado esquerdo contra o lado direito (giro sobre o
+centro) e `vy` aciona as diagonais DE/TD contra DD/TE (*strafe*), como na
+tabela de `movimentos-robo-rodas-mecanum.md`. Acionar as dianteiras contra as
+traseiras não gera movimento em rodas Mecanum: as forças se anulam.
 
 Onde:
 
@@ -467,8 +473,8 @@ Onde:
 |---|---|
 | Frente | todos os motores avançam |
 | Trás | todos os motores recuam |
-| Esquerda | rotação lateral para a esquerda |
-| Direita | rotação lateral para a direita |
+| Esquerda | deslocamento lateral para a esquerda (`vy < 0`) |
+| Direita | deslocamento lateral para a direita (`vy > 0`) |
 | Rotação horária | rotação no sentido horário |
 | Rotação anti-horária | rotação no sentido anti-horário |
 

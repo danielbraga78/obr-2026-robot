@@ -281,9 +281,11 @@ void stopAllMotors() {
 }
 
 void applyOmniMotion(float vx, float vy, float wz) {
+  // Mecanum (movimentos-robo-rodas-mecanum.md): vx > 0 avanca, vy > 0 desloca
+  // para a direita e wz > 0 gira no sentido horario (esquerda contra direita).
   const float motor1 = vx + vy + wz;
-  const float motor2 = vx - vy - wz;
-  const float motor3 = vx - vy + wz;
+  const float motor2 = vx - vy + wz;
+  const float motor3 = vx - vy - wz;
   const float motor4 = vx + vy - wz;
 
   const float maxAbs = max(max(abs(motor1), abs(motor2)), max(abs(motor3), abs(motor4)));
@@ -295,7 +297,7 @@ void applyOmniMotion(float vx, float vy, float wz) {
   }
 
   // Ordem logica: 0 = frente esquerda, 1 = tras esquerda, 2 = frente direita,
-  // 3 = tras direita. CONFERIR NA BANCADA com o motor_bench_test: a PCB numera
+  // 3 = tras direita. CONFERIR NA BANCADA com o SEQ do universal_calibration_test: a PCB numera
   // os conectores de J2 a J5 sem dizer qual roda e qual.
   setMotorSpeed(0, static_cast<int>(motor1 * scale));
   setMotorSpeed(1, static_cast<int>(motor2 * scale));

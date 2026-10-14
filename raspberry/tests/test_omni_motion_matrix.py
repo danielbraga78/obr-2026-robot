@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 
 from raspberry.config import MOTOR_MAX_PWM, MOTOR_MIN_PWM, MOTOR_PWM_GAINS
-from raspberry.motion import _firmware_wheel_pwms, normalize_motor_command
+from raspberry.motion import _firmware_wheel_pwms, _wheel_speeds, normalize_motor_command
 
 def _read_firmware(path: str) -> str:
     return Path(__file__).resolve().parents[2].joinpath(path).read_text(encoding="utf-8")
@@ -13,6 +13,15 @@ FIRMWARES = (
     "arduino/firmware/robot_mega_pcb/robot_mega_pcb.ino",
 )
 MATRIX = (
+    "const float motor1 = vx + vy + wz;",
+    "const float motor2 = vx - vy + wz;",
+    "const float motor3 = vx - vy - wz;",
+    "const float motor4 = vx + vy - wz;",
+)
+# O sketch Uno numera os motores como frente esquerda, frente direita, tras
+# esquerda e tras direita; por isso a mesma cinematica mecanum aparece com as
+# linhas 2 e 3 trocadas em relacao aos firmwares Mega.
+LEGACY_MATRIX = (
     "const float motor1 = vx + vy + wz;",
     "const float motor2 = vx - vy - wz;",
     "const float motor3 = vx - vy + wz;",
@@ -69,11 +78,11 @@ def test_supported_firmware_profiles_match_raspberry_motion_model():
 
         for command, expected in (
             ("MOVE,150,0,0", (150, 150, 150, 150)),
-            ("MOVE,150,0,50", (190, 110, 190, 110)),
-            ("MOVE,110,0,80", (160, 0, 160, 0)),
+            ("MOVE,150,0,50", (190, 190, 110, 110)),
+            ("MOVE,110,0,80", (160, 160, 0, 0)),
             ("MOVE,110,0,20", (0, 0, 0, 0)),
-            ("MOVE,0,0,110", (110, -110, 110, -110)),
-            ("MOVE,0,0,-110", (-110, 110, -110, 110)),
+            ("MOVE,0,0,110", (110, 110, -110, -110)),
+            ("MOVE,0,0,-110", (-110, -110, 110, 110)),
         ):
             normalized = normalize_motor_command(command)
             velocity = (
@@ -91,4 +100,24 @@ def test_supported_firmware_profiles_match_raspberry_motion_model():
 def test_legacy_robot_sketch_keeps_the_same_omni_matrix():
     source = _read_firmware("arduino/robot/robot.ino")
 
-    assert all(matrix_line in source for matrix_line in MATRIX)
+    assert all(matrix_line in source for matrix_line in LEGACY_MATRIX)
+
+
+def _signs(wheels):
+    return tuple(0 if abs(value) < 1e-9 else (1 if value > 0 else -1) for value in wheels)
+
+
+def test_wheel_matrix_reproduces_documented_mecanum_movements():
+    # Tabela de movimentos-robo-rodas-mecanum.md. _wheel_speeds devolve a ordem
+    # do firmware (DE, TE, DD, TD); a tabela aqui fica na ordem DE, DD, TE, TD.
+    cases = {
+        "para frente": ((100, 0, 0), (1, 1, 1, 1)),
+        "para a direita": ((0, 100, 0), (1, -1, -1, 1)),
+        "diagonal frente e direita": ((50, 50, 0), (1, 0, 0, 1)),
+        "giro com ponto a direita": ((50, 0, 50), (1, 0, 1, 0)),
+        "giro sobre o centro": ((0, 0, 100), (1, -1, 1, -1)),
+        "giro com ponto atras": ((0, 50, 50), (1, -1, 0, 0)),
+    }
+    for name, (command, expected) in cases.items():
+        de, te, dd, td = _wheel_speeds(*command)
+        assert _signs((de, dd, te, td)) == expected, name

@@ -15,8 +15,8 @@ from .config import (
 _STOP_COMMANDS = frozenset({"STOP", "EMERGENCY STOP", "EMERGENCY_STOP"})
 _WHEEL_MATRIX = (
     (1.0, 1.0, 1.0),
-    (1.0, -1.0, -1.0),
     (1.0, -1.0, 1.0),
+    (1.0, -1.0, -1.0),
     (1.0, 1.0, -1.0),
 )
 _ZERO_EPSILON = 1e-9
@@ -71,7 +71,7 @@ def _body_velocity_from_wheels(wheels: tuple[int, int, int, int]) -> tuple[float
     return (
         (m1 + m2 + m3 + m4) / 4.0,
         (m1 - m2 - m3 + m4) / 4.0,
-        (m1 - m2 + m3 - m4) / 4.0,
+        (m1 + m2 - m3 - m4) / 4.0,
     )
 
 

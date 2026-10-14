@@ -62,10 +62,11 @@ class FollowLineTests(unittest.TestCase):
         left_wheels = _wheel_speeds(*map(float, parse_move(normalize_motor_command(left.command))))
         right_wheels = _wheel_speeds(*map(float, parse_move(normalize_motor_command(right.command))))
 
-        self.assertLess(left_wheels[0], left_wheels[1])
-        self.assertLess(left_wheels[2], left_wheels[3])
-        self.assertGreater(right_wheels[0], right_wheels[1])
-        self.assertGreater(right_wheels[2], right_wheels[3])
+        # Ordem das rodas: 0 = frente esquerda, 1 = tras esquerda, 2 = frente direita, 3 = tras direita.
+        self.assertLess(left_wheels[0], left_wheels[2])
+        self.assertLess(left_wheels[1], left_wheels[3])
+        self.assertGreater(right_wheels[0], right_wheels[2])
+        self.assertGreater(right_wheels[1], right_wheels[3])
 
     def test_rapidly_alternating_error_reverses_steering_without_stale_command(self):
         state = FollowLineState()

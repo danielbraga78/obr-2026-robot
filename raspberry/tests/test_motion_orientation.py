@@ -86,10 +86,10 @@ class MotorDeadbandTests(unittest.TestCase):
     def test_audit_commands_reach_firmware_with_expected_outputs(self):
         cases = {
             "MOVE,150,0,0": (150, 150, 150, 150),
-            "MOVE,150,0,50": (190, 110, 190, 110),
-            "MOVE,110,0,80": (160, 0, 160, 0),
-            "MOVE,0,0,110": (110, -110, 110, -110),
-            "MOVE,0,0,-110": (-110, 110, -110, 110),
+            "MOVE,150,0,50": (190, 190, 110, 110),
+            "MOVE,110,0,80": (160, 160, 0, 0),
+            "MOVE,0,0,110": (110, 110, -110, -110),
+            "MOVE,0,0,-110": (-110, -110, 110, 110),
         }
         for command, expected_wheels in cases.items():
             with self.subTest(command=command):
